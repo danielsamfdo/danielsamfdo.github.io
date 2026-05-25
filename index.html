@@ -1,1043 +1,658 @@
-<!DOCTYPE html>
-<!-- ==============================
-    Project:        Metronic "Acecv" Frontend Freebie - Responsive HTML Template Based On Twitter Bootstrap 3.3.4
-    Version:        1.0
-    Author:         KeenThemes
-    Primary use:    Corporate, Business Themes.
-    Email:          support@keenthemes.com
-    Follow:         http://www.twitter.com/keenthemes
-    Like:           http://www.facebook.com/keenthemes
-    Website:        http://www.keenthemes.com
-    Premium:        Premium Metronic Admin Theme: http://themeforest.net/item/metronic-responsive-admin-dashboard-template/4021469?ref=keenthemes
-================================== -->
-<html lang="en" class="no-js">
-    <!-- BEGIN HEAD -->
-    <head>
-        <meta charset="utf-8"/>
-        <title>Daniel Sam Pete Thiyagu</title>
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta content="width=device-width, initial-scale=1" name="viewport"/>
-        <meta content="" name="description"/>
-        <meta content="" name="author"/>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Daniel Sam Pete Thiyagu is a senior software engineer focused on AI, machine learning infrastructure, recommendations, LLM tooling, and content understanding.">
+  <title>Daniel Sam Pete Thiyagu | Senior Software Engineer</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #5e6a75;
+      --line: #dfe5ea;
+      --surface: #f7f9fb;
+      --panel: #ffffff;
+      --accent: #0f766e;
+      --accent-dark: #134e4a;
+      --shadow: 0 18px 45px rgba(23, 32, 42, .08);
+      --radius: 8px;
+    }
 
-        <!-- GLOBAL MANDATORY STYLES -->
-        <link href="http://fonts.googleapis.com/css?family=Hind:300,400,500,600,700" rel="stylesheet" type="text/css">
-        <link href="vendor/simple-line-icons/css/simple-line-icons.css" rel="stylesheet" type="text/css"/>
-        <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css"/>
+    * {
+      box-sizing: border-box;
+    }
 
-        <!-- PAGE LEVEL PLUGIN STYLES -->
-        <link href="css/animate.css" rel="stylesheet">
-        <link href="vendor/swiper/css/swiper.min.css" rel="stylesheet" type="text/css"/>
+    html {
+      scroll-behavior: smooth;
+    }
 
-        <!-- THEME STYLES -->
-        <link href="css/layout.min.css" rel="stylesheet" type="text/css"/>
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--surface);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
 
-        <!-- Favicon -->
-        <link rel="shortcut icon" href="favicon.ico"/>
-    </head>
-    <!-- END HEAD -->
+    a {
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
 
-    <!-- BODY -->
-    <body id="body" data-spy="scroll" data-target=".header">
+    a:hover {
+      color: var(--accent);
+    }
 
-        <!--========== HEADER ==========-->
-        <header class="header navbar-fixed-top">
-            <!-- Navbar -->
-            <nav class="navbar" role="navigation">
-                <div class="container">
-                    <!-- Brand and toggle get grouped for better mobile display -->
-                    <div class="menu-container js_nav-item">
-                        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
-                            <span class="sr-only">Toggle navigation</span>
-                            <span class="toggle-icon"></span>
-                        </button>
+    .page {
+      min-height: 100vh;
+    }
 
-                        <!-- Logo -->
-                        <!-- End Logo -->
-                    </div>
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(247, 249, 251, .92);
+      border-bottom: 1px solid rgba(223, 229, 234, .8);
+      backdrop-filter: blur(18px);
+    }
 
-                    <!-- Collect the nav links, forms, and other content for toggling -->
-                    <div class="collapse navbar-collapse nav-collapse">
-                        <div class="menu-container">
-                            <ul class="nav navbar-nav navbar-nav-right">
-                                <li class="js_nav-item nav-item"><a class="nav-item-child nav-item-hover" href="#body">Home</a></li>
-                                <li class="js_nav-item nav-item"><a class="nav-item-child nav-item-hover" href="#about">About</a></li>
-                                <li class="js_nav-item nav-item"><a class="nav-item-child nav-item-hover" href="#experience">Experience</a></li>
-                                <li class="js_nav-item nav-item"><a class="nav-item-child nav-item-hover" href="#work">Projects</a></li>
-                                <li class="js_nav-item nav-item"><a class="nav-item-child nav-item-hover" href="#contact">Contact</a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <!-- End Navbar Collapse -->
-                </div>
-            </nav>
-            <!-- Navbar -->
-        </header>
-        <!--========== END HEADER ==========-->
+    .nav-inner,
+    .section,
+    .hero {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
 
-        <!--========== SLIDER ==========-->
-        <div class="promo-block">
-            <div class="container">
-                <div class="row">
-                    <div class="col-sm-6 sm-margin-b-60">
-                        <div class="margin-b-30">
-                            <h1 class="promo-block-title">Daniel Sam Pete <br/> Thiyagu</h1>
-                            <p class="promo-block-text">M.S, Computer Science, Umass Amherst</p>
-                        </div>
-                        <ul class="list-inline">
-                            <li><a href="https://twitter.com/danielsamfdo" class="social-icons"><i class="icon-social-twitter"></i></a></li>
-                            <li><a href="http://linkedin.com/in/danielsampete" class="social-icons"><i class="icon-social-linkedin"></i></a></li>
-                        </ul>
-                    </div>
-                    <!-- <div class="col-sm-6">
-                        <div class="promo-block-img-wrap">
-                            <img class="promo-block-img img-responsive" src="img/bg.jpg" align="Avatar">
-                        </div>
-                    </div> -->
-                </div>
-                <!--// end row -->
-            </div>
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 68px;
+      gap: 24px;
+    }
+
+    .brand {
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) 360px;
+      gap: 56px;
+      align-items: center;
+      padding: 86px 0 72px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 18px;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 28px;
+      height: 2px;
+      background: var(--accent);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 780px;
+      margin-bottom: 22px;
+      font-size: clamp(42px, 8vw, 82px);
+      line-height: .98;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 720px;
+      margin-bottom: 30px;
+      color: var(--muted);
+      font-size: clamp(18px, 2.5vw, 22px);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 34px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 800;
+      box-shadow: 0 6px 18px rgba(23, 32, 42, .04);
+    }
+
+    .button.primary {
+      border-color: var(--accent-dark);
+      background: var(--accent-dark);
+      color: #fff;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .quick-facts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      max-width: 760px;
+    }
+
+    .fact,
+    .card,
+    .profile-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .fact {
+      padding: 18px;
+    }
+
+    .fact strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .fact span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .profile-card {
+      overflow: hidden;
+    }
+
+    .profile-card img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+    }
+
+    .profile-body {
+      padding: 24px;
+    }
+
+    .profile-body h2 {
+      margin-bottom: 8px;
+      font-size: 22px;
+    }
+
+    .profile-body p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .section {
+      padding: 64px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .section-header {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 40px;
+      margin-bottom: 28px;
+    }
+
+    .section-header h2 {
+      margin-bottom: 0;
+      font-size: 28px;
+      line-height: 1.2;
+    }
+
+    .section-header p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      padding: 24px;
+    }
+
+    .card h3 {
+      margin-bottom: 10px;
+      font-size: 18px;
+      line-height: 1.35;
+    }
+
+    .card p,
+    .timeline p {
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 18px;
+    }
+
+    .role {
+      display: grid;
+      grid-template-columns: 230px minmax(0, 1fr);
+      gap: 28px;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .role-meta {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .role-meta strong {
+      display: block;
+      color: var(--ink);
+      font-size: 18px;
+    }
+
+    .role h3 {
+      margin-bottom: 12px;
+      font-size: 22px;
+    }
+
+    .role ul {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+    }
+
+    .role li + li {
+      margin-top: 8px;
+    }
+
+    .skill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .skill-list li {
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .education {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .contact-band {
+      background: var(--accent-dark);
+      color: #fff;
+    }
+
+    .contact-band .section {
+      border-top: 0;
+    }
+
+    .contact-band a,
+    .contact-band .section-header p {
+      color: #dff7f4;
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .contact-item {
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: var(--radius);
+    }
+
+    .contact-item span {
+      display: block;
+      margin-bottom: 6px;
+      color: rgba(255, 255, 255, .72);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    footer {
+      padding: 28px 0;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    @media (max-width: 860px) {
+      .nav-inner,
+      .section,
+      .hero {
+        width: min(100% - 28px, 1120px);
+      }
+
+      .nav-inner {
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: center;
+        padding: 14px 0;
+      }
+
+      .nav-links {
+        flex-wrap: wrap;
+        gap: 12px 18px;
+      }
+
+      .hero,
+      .section-header,
+      .role {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding-top: 54px;
+      }
+
+      .profile-card {
+        max-width: 360px;
+      }
+
+      .quick-facts,
+      .grid,
+      .education,
+      .contact-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 520px) {
+      h1 {
+        font-size: 42px;
+      }
+
+      .section {
+        padding: 48px 0;
+      }
+
+      .role,
+      .card,
+      .profile-body {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="nav" aria-label="Primary navigation">
+      <div class="nav-inner">
+        <a class="brand" href="#top">Daniel Sam Pete Thiyagu</a>
+        <div class="nav-links">
+          <a href="#impact">Impact</a>
+          <a href="#experience">Experience</a>
+          <a href="#skills">Skills</a>
+          <a href="#education">Education</a>
+          <a href="#contact">Contact</a>
         </div>
-        <!--========== SLIDER ==========-->
+      </div>
+    </nav>
 
-        <!--========== PAGE LAYOUT ==========-->
-        <!-- About -->
-        <div id="about">
-            <div class="container content-lg">
-                <div class="row">
-                    <div class="col-sm-5 sm-margin-b-60">
-                        <img class="full-width img-responsive" src="img/bg.jpg" alt="Image">
-                    </div>
-                    <div class="col-sm-7">
-                        <div class="section-seperator margin-b-50">
-                            <div class="margin-b-50">
-                                <div class="margin-b-30">
-                                    <h2>About Me</h2>
-                                    <p>I'm Daniel Sam Pete Thiyagu. An ambivert that loves to toy around with computers, algorithms and other geeky and nerdy stuff. I did my Bachelors in Engineering in Computer Science and Engineering at College of Engineering Guindy, Anna University. I am currently pursuing Masters in Science, Computer Science at University of Massachusetts Amherst. I am actively interested in areas of Natural Language Processing and Machine Learning like Reinforcement Learning, Deep Learning. I am currently seeking Full time jobs for the year 2018. Please do contact me if you require further information.
-
-I am ambitious and passionate person who loves writing code that has an impact to the community. You can contact me at danielsamfdo@gmail.com for further details or info.</p>
-                                </div>
-                                <a href="https://drive.google.com/drive/u/0/folders/0B09veTD03OS_RmJSUHFjb0dQZTQ/view" class="btn-theme btn-theme-md btn-default-bg text-uppercase">Download my CV</a>
-                            </div>
-                        </div>
-
-                        <h2>My Skills</h2>
-                        <!-- Progress Box -->
-                        <div class="progress-box">
-                            <h5>Web development <span class="color-heading pull-right">87%</span></h5>
-                            <div class="progress">
-                                <div class="progress-bar bg-color-base" role="progressbar" data-width="87"></div>
-                            </div>
-                        </div>
-                        <div class="progress-box">
-                            <h5>Data Science <span class="color-heading pull-right">90%</span></h5>
-                            <div class="progress">
-                                <div class="progress-bar bg-color-base" role="progressbar" data-width="90"></div>
-                            </div>
-                        </div>
-                        <div class="progress-box">
-                            <h5>Software Development <span class="color-heading pull-right">95%</span></h5>
-                            <div class="progress">
-                                <div class="progress-bar bg-color-base" role="progressbar" data-width="95"></div>
-                            </div>
-                        </div>
-                        <!-- End Progress Box -->
-                    </div>
-                </div>
-                <!--// end row -->
+    <main id="top">
+      <section class="hero" aria-labelledby="intro-title">
+        <div>
+          <p class="eyebrow">Senior Software Engineer</p>
+          <h1 id="intro-title">Building AI systems that move from prototype to production.</h1>
+          <p class="lead">
+            I am a Fremont-based engineer focused on recommendation systems, LLM infrastructure,
+            prompt optimization, content understanding, and scalable ML products.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="mailto:danielsamfdo@gmail.com">Email Daniel</a>
+            <a class="button" href="Daniel-Sam-Pete-Thiyagu-Resume.pdf">Download Resume</a>
+            <a class="button" href="https://linkedin.com/in/danielsampete">LinkedIn</a>
+          </div>
+          <div class="quick-facts" aria-label="Career highlights">
+            <div class="fact">
+              <strong>Meta</strong>
+              <span>Media Understanding Team</span>
             </div>
-        </div>
-        <!-- End About -->
-
-        <!-- Experience -->
-        <div id="experience">
-            <div class="bg-color-sky-light" data-auto-height="true">
-                <div class="container content-lg">
-                <h2>Experience</h2>    
-                    <div class="row row-space-2 margin-b-4">
-                        <div class="col-md-4 col-sm-6 md-margin-b-4">
-                            <div class="service" data-height="height">
-                                <div class="service-element">
-                                </div>
-                                <div class="service-info">
-                                    <h3>Chronus</h3>
-                                    <p class="margin-b-5"> <b>Software Development Engineer (06/2014 - 07/2016) </b>
-                                    <br/>
-                                    Ruby on Rails Full stack Development</p>
-                                </div>
-                                <a class="content-wrapper-link" href="#" data-toggle="modal" data-target="#chronus"></a>
-
-                            </div>
-                        </div>
-                        <div class="col-md-4 col-sm-6 md-margin-b-4">
-                            <div class="service bg-color-base wow zoomIn" data-height="height" data-wow-duration=".3" data-wow-delay=".1s">
-                                <div class="service-element">
-                                </div>
-                                <div class="service-info">
-                                    <h3 class="color-white">ANR Lab</h3>
-                                    <p class="color-white margin-b-5"><b>Programming Assistant (11/2016 - 05/2017)</b><br/>Emergency Notification Portal Development in Laravel</p>
-                                </div>
-                                <a class="content-wrapper-link" href="#" data-toggle="modal" data-target="#anr"></a>
-
-                            </div>
-                        </div>
-                        <div class="col-md-4 col-sm-6 sm-margin-b-4">
-                            <div class="service" data-height="height">
-                                <div class="service-element">
-                                </div>
-                                <div class="service-info">
-                                    <h3>Prophit Insight</h3>
-                                    <p class="margin-b-5"><b>Data Scientist Intern (05/2017 - 08/2017)</b><br/>Developing Insights into medical data </p>
-                                </div>
-                                <a class="content-wrapper-link" href="#" data-toggle="modal" data-target="#prophit"></a>
-                            </div>
-                        </div>
-                    </div>
-                    <!--// end row -->
-                </div>
+            <div class="fact">
+              <strong>Google</strong>
+              <span>Core-ML and Trust Systems</span>
             </div>
-        </div>
-        <!-- End Experience -->
-
-        <!-- Work -->
-        <div id="work">
-            <div class="container content-lg">
-                <div class="row margin-b-40">
-                    <div class="col-sm-6">
-                        <h2>Projects</h2>
-                    </div>
-                </div>
-                <!--// end row -->
-                <div class="row">
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Binary Neural Networks </h4>
-                        <p>Implemented binarized networks with constrained weights and activations and evaluated them on image classification.</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#bnn">Read More</a>
-                    </div>
-
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Effectiveness of Alarms </h4>
-                        <p>Analyzed the effectiveness of alarm signals in cars based on user preferences using Reinforcement learning using models based on cautious, moderately cautious and irresponsible drivers</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#carsafety">Read More</a>
-                    </div>
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Home Memories </h4>
-                        <p>Alexa based app for HackUmass V, that helps for a memory system and additional utilities for a mother son bonding. </p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#homemem">Read More</a>
-                    </div>
-                    
-                    
-                    <!-- End Latest Products -->
-
-                    <!-- Latest Products -->
-                    
-                    <!-- End Latest Products -->
-                </div>
-                <br/>
-                <br/>
-                <br/>
-
-                <div class="row">
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>MultiLingual Representation </h4>
-                        <p>Harness unlabeled multilingual data and learn a common representation under which structure and meaning is shared across various languages.</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#oracle">Read More</a>
-                    </div>
-
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Garbage Collector </h4>
-                        <p>A Memory Management Module to dynamically allocate and manage memory for any concurrent program in CPP as well as a garbage collector</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#gc">Read More</a>
-                    </div>
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Memcached </h4>
-                        <p>Need a cache system on your machine ?? </p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#memcached">Read More</a>
-                    </div>
-                    
-                    
-                    <!-- End Latest Products -->
-
-                    <!-- Latest Products -->
-                    
-                    <!-- End Latest Products -->
-                </div>
-                <br/>
-                <br/>
-                <br/>
-                <div class="row">
-                    <!-- Latest Products -->
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>In the Bin </h4>
-                        <p style="color:#e0c221;">Runners @ Hacking for Good by Harvard Business School and Google.</p> <p>Find the nearest trash can to throw trash using this crowd sourced web app</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#inthebin">Read More</a>
-                    </div>
-
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Image Captioning </h4>
-                        <p>A neural net method for image captioning using attention mechanisms</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#imgcap">Read More</a>
-                    </div>
-
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Semantic Similarity </h4>
-                        <p>A deep dive into finding out similarity of sentences using NLP and Machine learning based methods</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#semsim">Read More</a>
-                    </div>
-
-                    
-
-                </div>
-                <br/>
-                <br/>
-                <br/>
-                <div class="row">
-
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Pictionary with JIBO </h4>
-                        <p style="color:#e0c221;">Best Use of JIBO prize @ HackUMass 2016.</p> 
-                        <p> Play pictionary with JIBO backed by Tensorflow and Machine Learning</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#jibo">Read More</a>
-                    </div>
-
-                    
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Chess </h4>
-                        <p>Battle with an AI Bot</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#chess">Read More</a>
-                    </div>
-
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Church Attendance </h4>
-                        <p>Want to take attendance in church ?? Use this ! This was a voluntary project for my church</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#church">Read More</a>
-                    </div>
-                    
-                    <!-- End Latest Products -->
-
-                    <!-- Latest Products -->
-                    
-                    <!-- End Latest Products -->
-                </div>
-                <br/>
-                <br/>
-                <br/>
-                <div class="row">
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Twitter Topic Summarization </h4>
-                        <p>A summary of tweets using Speech Acts Classification and generation of summary</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#topsum">Read More</a>
-                    </div>
-
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>Tamil Grammar Autocorrect </h4>
-                        <p>Afraid of making grammatical mistakes ?? Fear not !!</p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#tamil">Read More</a>
-                    </div>
-                    <div class="col-sm-4 sm-margin-b-50">
-                        <h4>HLM Android App </h4>
-                        <p>An Android application and a web application for a religious organization </p>
-                        <a class="link" href="#" data-toggle="modal" data-target="#hlm">Read More</a>
-                    </div>
-                    
-                </div>
-
-                <!--// end row -->
-            </div>
-        </div>
-        <!-- End Work -->
-
-        <!-- Clients -->
-        
-        <!-- End Clients -->
-
-        <!-- Promo Banner -->
-<!--         <div class="promo-banner parallax-window" data-parallax="scroll" data-image-src="img/1920x1080/01.jpg">
-            <div class="container-sm content-lg">
-                <h2 class="promo-banner-title">Displaying the Result</h2>
-                <p class="promo-banner-text">Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.</p>
-            </div>
-        </div> -->
-        <!-- End Promo Banner -->
-            
-        <!-- Contact -->
-        <div id="contact">
-            <div class="bg-color-sky-light">
-                <div class="container content-lg">
-                    <div class="row margin-b-40">
-                        <div class="col-sm-6">
-                           <h2>Contact Me</h2>
-                            <p>Please shoot me a mail at danielsamfdo@gmail.com</p>
-                        </div>
-                    </div>
-                    <!--// end row -->
-
-                    <div class="row">
-                        <div class="col-md-4 col-xs-6 md-margin-b-30">
-                            <h4>Location</h4>
-                            <a href="#">Amherst, Massachusetts</a>
-                        </div>
-                        <div class="col-md-4 col-xs-6">
-                            <h4>Email</h4>
-                            <a href="mailto:danielsamfdo@gmail.com">danielsamfdo@gmail.com</a>
-                        </div>
-                        <div class="col-md-4 col-xs-6">
-                            <h4>Web</h4>
-                            <a href="#">danielsamfdo.github.io</a>
-                        </div>
-                    </div>
-                    <!--// end row -->
-                    <div class="row">
-                        <div class="col-md-4 col-xs-6 md-margin-b-30">
-                            <h4>Text</h4>
-                            <a href="sms:+14133620732">Text me</a>
-                        </div>
-                        <div class="col-md-4 col-xs-6">
-                            <h4>Call me</h4>
-                            <a href="tel:+14133620732">Call me</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- End Contact -->
-        <!--========== END PAGE LAYOUT ==========-->
-
-        <!--========== FOOTER ==========-->
-        <footer class="footer">
-            <div class="content container">
-                <div class="row">
-                    <div class="col-xs-6">
-                        <img class="footer-logo" src="img/logo.png" alt="Acecv Logo">
-                    </div>
-                    <div class="col-xs-6 text-right sm-text-left">
-                        <p class="margin-b-0"><a class="fweight-700" href="http://keenthemes.com/preview/acecv/">Acecv</a> Theme Powered by: <a class="fweight-700" href="http://www.keenthemes.com/">KeenThemes.com</a></p>
-                    </div>
-                </div>
-                <!--// end row -->
-            </div>
-        </footer>
-        <!--========== END FOOTER ==========-->
-
-        <!-- Back To Top -->
-        <a href="javascript:void(0);" class="js-back-to-top back-to-top">Top</a>
-
-        <!-- JAVASCRIPTS(Load javascripts at bottom, this will reduce page load time) -->
-        <!-- CORE PLUGINS -->
-        <script src="vendor/jquery.min.js" type="text/javascript"></script>
-        <script src="vendor/jquery-migrate.min.js" type="text/javascript"></script>
-        <script src="vendor/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
-
-        <!-- PAGE LEVEL PLUGINS -->
-        <script src="vendor/jquery.easing.js" type="text/javascript"></script>
-        <script src="vendor/jquery.back-to-top.js" type="text/javascript"></script>
-        <script src="vendor/jquery.smooth-scroll.js" type="text/javascript"></script>
-        <script src="vendor/jquery.wow.min.js" type="text/javascript"></script>
-        <script src="vendor/jquery.parallax.min.js" type="text/javascript"></script>
-        <script src="vendor/jquery.appear.js" type="text/javascript"></script>
-        <script src="vendor/swiper/js/swiper.jquery.min.js" type="text/javascript"></script>
-
-        <!-- PAGE LEVEL SCRIPTS -->
-        <script src="js/layout.min.js" type="text/javascript"></script>
-        <script src="js/components/progress-bar.min.js" type="text/javascript"></script>
-        <script src="js/components/swiper.min.js" type="text/javascript"></script>
-        <script src="js/components/wow.min.js" type="text/javascript"></script>
-
-    </body>
-    
-    <div class="modal fade" id="imgcap" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Image Captioning using Attention Mechanism</h4>
-            </div>
-            <div class="modal-body">
-            <img src="./Daniel Sam Pete Thiyagu_files/caption.jpg" class="img-responsive img-centered" alt="">
-            <p>Click this <a href="https://drive.google.com/file/d/0B09veTD03OS_ZmRjYm5Eb3JxRTA/view?usp=sharing">Link</a> for more info.</p>
-            <p>Click this <a href="https://docs.google.com/presentation/d/1XJnV4naMAOtOaIczUzd69j0PCQC7x3TiREpO-uSqWzk/edit?usp=sharing">Link</a> for a ppt.</p>
-
-            <p>Using gradient descent based training algorithms incorporated with an attention mechanism, we were able to build a deep learning model that learns to generate image descriptions given an unseen image. Inspired by past work in treating the caption generation task as a neural translation task, our deep learning network tries to represent natural language, visual features and visual focal points in the same embedding while using a recurrent network to generate sentences. We implemented and evaluated our attention model with the traditional neural approach to image captioning as well as non-deep learning methods. Our evaluations were done using the bleu, meteor and cider metrics. The results show that attention-based deep learning models can learn to produce good image captions. We also show visualizations to infer how a model is able to focus on certain parts of the image while predicting the next word.  </p>
-
-            <ul class="list-inline item-details">
-                <li>Technologies used:
-                    <strong>Python, Keras
-                    </strong>
-                </li>
-                <li>Date:
-                    <strong>November 2016 - December 2016
-                    </strong>
-                </li>
-            </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            <div class="fact">
+              <strong>3.9</strong>
+              <span>M.S. CS GPA at UMass Amherst</span>
             </div>
           </div>
         </div>
-    </div>
 
-    <div class="modal fade" id="topsum" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Twitter Topic Summarization using Speech Acts and Sequential Summarization</h4>
+        <aside class="profile-card" aria-label="Profile summary">
+          <img src="profile.jpeg" alt="Daniel Sam Pete Thiyagu">
+          <div class="profile-body">
+            <h2>AI, ML, and product infrastructure</h2>
+            <p>
+              Recent work spans Instagram recommendation controls, Gemini prompt tooling,
+              multimodal prompt optimization, and AI-assisted review systems.
+            </p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="section" id="impact">
+        <div class="section-header">
+          <h2>Selected Impact</h2>
+          <p>Highlights from shipped systems, product launches, and production ML infrastructure.</p>
+        </div>
+        <div class="grid">
+          <article class="card">
+            <h3>Launched Instagram Tune Your Algorithm</h3>
+            <p>Led technical design and infrastructure for the US launch, taking the feature from inception through public testing to production in under six months.</p>
+          </article>
+          <article class="card">
+            <h3>Improved LLM prompt performance</h3>
+            <p>Built prompt optimization systems used by 20+ product areas, delivering measurable gains through AI-driven tuning, rewriting, and reranking.</p>
+          </article>
+          <article class="card">
+            <h3>Reduced review latency</h3>
+            <p>Owned AI and human hybrid review systems for abusive content in Search, reducing takedown time from days to minutes.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="experience">
+        <div class="section-header">
+          <h2>Experience</h2>
+          <p>Recent roles centered on high-impact AI product launches, applied ML infrastructure, and production systems.</p>
+        </div>
+        <div class="timeline">
+          <article class="role">
+            <div class="role-meta">
+              <strong>Meta</strong>
+              Senior Software Engineer<br>
+              Jul 2025 - Present
             </div>
-            <div class="modal-body">
-                <img src="./Daniel Sam Pete Thiyagu_files/twitter.png" class="img-responsive img-centered" alt="">
-                <p>Click this <a href="https://drive.google.com/file/d/0B09veTD03OS_Q3ZYamxSMDVwTzg/view">Link</a> for more info.</p>
-
-                <p>In a micro-blog such as twitter, there are a wide array of tweets on each topic of interest according to the user.</p>
-
-                <p>In order to enable users to quickly view a summary about a topic
-                searched, a system is proposed in which it involves two major steps.
-                </p>
-                <p>
-                1. Speech-act based classiﬁcation of the tweets<br>
-                2. Generating the summary with the classiﬁed tweets<br>
-                </p>
-                <p>In this approach, given an input query topic, the best relevant tweets are retrieved by the system using tweepy API. Then speech act recognition is done, which is a multiclass classification problem solved using the word based linguistic features and features based on twitter. The Speech Act Recognition recognizes speech acts such as statement, question, comment/suggestion and the rest are tagged as miscellaneous. These four type of speech acts are the most common types found in twitter tweet stream. The classification is done using Logistic Regression after testing that it worked better than SVM. The unwanted/miscellaneous tweets are ignored and then an abstract summary is formed using the remaining tweets. Phrase Extraction and Entity Extraction is done to each tweet and the necessary information is used. Information about entities used in the summaries are stored in a database to avoid redundant information. Summarization is done based on k means algorithm with which an abstract summary is formed which is based on the uniqueness of the tweet and the similarity and various other features which would be used in forming a valid summary. The Summarization is carried out by gathering information from the most informative, time-based and novel tweets from each cluster formed through k means algorithm. Novelty is identified using IDF values and other such measures.</p>
-
-                <ul class="list-inline item-details">
-                    <li>Technologies used:
-                        <strong>Python, Octave
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>December 2014 - April 2014
-                        </strong>
-                    </li>
-                </ul>
+            <div>
+              <h3>Media Understanding Team</h3>
+              <ul>
+                <li>Led the technical design, infrastructure, and launch path for Instagram's Tune Your Algorithm experience.</li>
+                <li>Scaled adoption to 1.1% of US Reels DAU within weeks of launch and helped drive a 30% week-over-week increase in daily TYA reel impressions.</li>
+                <li>Developed the technical blueprint for Incremental Bio, targeting substantial GPU capacity savings.</li>
+              </ul>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+          </article>
+
+          <article class="role">
+            <div class="role-meta">
+              <strong>Google</strong>
+              Machine Learning Engineer<br>
+              Jun 2023 - Jul 2025
             </div>
+            <div>
+              <h3>Core-ML Team</h3>
+              <ul>
+                <li>Designed LLM-powered prompt optimization systems across tuning, rewriting, reranking, multimodal inputs, and GenAI evaluation.</li>
+                <li>Launched Prompt Iterative Developer Journeys and Prompt Execution APIs for automation pipelines and Search Review workflows.</li>
+                <li>Served as a founding engineer for PromptLab, prototyping AI agents, tool invocation, reasoning-based prompt chaining, and reusable prompt galleries.</li>
+                <li>Led production work across prompt execution storage, security, privacy, and compliance for enterprise LLM deployments.</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="role">
+            <div class="role-meta">
+              <strong>Google</strong>
+              Software Development Engineer<br>
+              Mar 2020 - May 2023
+            </div>
+            <div>
+              <h3>Core Team, Sunnyvale</h3>
+              <ul>
+                <li>Built A/B classifier evaluation infrastructure for model calibration and rollout across image and video moderation systems.</li>
+                <li>Integrated PhotoDNA, fuzzy matching, and hash-based detection methods to improve detection scale and accuracy.</li>
+                <li>Improved automation in human review workflows, reducing redundant review effort and saving operational resources.</li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="skills">
+        <div class="section-header">
+          <h2>Core Skills</h2>
+          <p>A practical mix of applied ML, backend systems, product infrastructure, and evaluation workflows.</p>
+        </div>
+        <ul class="skill-list" aria-label="Skills">
+          <li>LLM systems</li>
+          <li>Prompt optimization</li>
+          <li>AI agents</li>
+          <li>Multimodal AI</li>
+          <li>Recommendation systems</li>
+          <li>ML infrastructure</li>
+          <li>Model evaluation</li>
+          <li>A/B experimentation</li>
+          <li>Content safety</li>
+          <li>Search review systems</li>
+          <li>Production APIs</li>
+          <li>Privacy and compliance</li>
+        </ul>
+      </section>
+
+      <section class="section" id="education">
+        <div class="section-header">
+          <h2>Education & Recognition</h2>
+          <p>Academic foundation in computer science with repeated recognition for production impact.</p>
+        </div>
+        <div class="education">
+          <article class="card">
+            <h3>University of Massachusetts Amherst</h3>
+            <p>Master of Science in Computer Science. GPA: 3.9/4.0.</p>
+          </article>
+          <article class="card">
+            <h3>College of Engineering Guindy, Anna University</h3>
+            <p>Bachelor of Engineering in Computer Science and Engineering. CGPA: 9.39/10.0.</p>
+          </article>
+          <article class="card">
+            <h3>Google Core Impact Award</h3>
+            <p>Recognized with the team for actionable reporting work in child safety systems.</p>
+          </article>
+          <article class="card">
+            <h3>Peer and Spot Awards</h3>
+            <p>Earned 25+ peer awards and spot cash awards across Google and Intuit.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <div class="contact-band" id="contact">
+      <section class="section">
+        <div class="section-header">
+          <h2>Contact</h2>
+          <p>Open to thoughtful conversations about AI products, ML infrastructure, and systems that make models useful in production.</p>
+        </div>
+        <div class="contact-grid">
+          <div class="contact-item">
+            <span>Email</span>
+            <a href="mailto:danielsamfdo@gmail.com">danielsamfdo@gmail.com</a>
+          </div>
+          <div class="contact-item">
+            <span>Phone</span>
+            <a href="tel:+14133620732">413 362 0732</a>
+          </div>
+          <div class="contact-item">
+            <span>Location</span>
+            Fremont, CA
+          </div>
+          <div class="contact-item">
+            <span>Web</span>
+            <a href="https://danielsamfdo.github.io">danielsamfdo.github.io</a>
           </div>
         </div>
-    </div>
-    <div class="modal fade" id="jibo" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Twitter Topic Summarization using Speech Acts and Sequential Summarization</h4>
-            </div>
-            <div class="modal-body">
-                <img src="./Daniel Sam Pete Thiyagu_files/jibo.png" class="img-responsive img-centered" alt="">
-                <p>Click this <a href="https://devpost.com/software/pictionary-with-jibo">link</a> for more info</p>
-
-                <p>Source Code: Click <a href="https://github.com/jamesmorris2/jibo-pictionary">this link</a></p>
-
-                <p> We won the best use of JIBO in HackUMass 2016</p>
-                <p>First, ask Jibo to take a guess your drawing. It will take a picture and send it off to be classified by our custom-trained tensor flow neural networks. The first step uses openCV to detect the playing area within the board and crop off the rest of the image, and make it black and white. The image then gets passed off the our tensorflow model to be classified. We build trained neural network using hundreds of images pulled automatically from Bing Image Search. We used the "line drawing" category to limit it to pictures that look more like something drawn a whiteboard. We then supplemented the training data with a few examples of our own hand-drawn pictures. This network gives us a likelyhood for each possible label, which is sent back to Jibo. Then Jibo will go through these items one by one, listening for a "yes" or "no" from the user. There is an adorable celebration and frustration animation that plays when it gets the answer right or wrong. This continues until it exhausts its entire vocabulary, at which point it insults your artwork in protest!</p>
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>jibo,javascript,atom,python,opencv,tensorflow,flask,docker,npm,whiteboards,node.js,neural-networks
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong><a href="http://startbootstrap.com/">October 2016</a>
-                        </strong>
-                    </li>
-                    
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
+      </section>
     </div>
 
-    <div class="modal fade" id="tamil" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Tamil Grammar Auto Correct</h4>
-            </div>
-            <div class="modal-body">
-                <img src="./Daniel Sam Pete Thiyagu_files/autocorrect.jpg" class="img-responsive img-centered" alt="">
-                <p>A natural language processing project which does an autocorrect of a subset of the grammatical rules present in the Tamil. It involved generating the various parts of speech from the stem words and using a syntactic parser to aid in verifying the correctness of the grammar and building an effective algorithm was built to rectify the errors if found. Repo link : <a href="https://github.com/danielsamfdo/tamil_grammar_auto_correct"> https://github.com/danielsamfdo/tamil_grammar_auto_correct </a> </p>
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>Python
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>February 2013 - April 2013
-                        </strong>
-                    </li>
-                    
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="chess" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Chess</h4>
-            </div>
-            <div class="modal-body">
-                <img src="./Daniel Sam Pete Thiyagu_files/chess.png" class="img-responsive img-centered" alt="">
-                <p>Created a two player and a one player game for Chess. The one player game utilized Alpha Beta Pruning Algorithm.</p>
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>Java
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>April 2012
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="church" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Twitter Topic Summarization using Speech Acts and Sequential Summarization</h4>
-            </div>
-            <div class="modal-body">
-                <img src="./Daniel Sam Pete Thiyagu_files/attendance.png" class="img-responsive img-centered" alt="">
-                <p>An online website for a church written using laravel framework which provides the admins reports on the attendance and details of the users. It also utilizes AdminLTE responsive framework.The backend database is a mySql DB. You can check it out in <a href="https://church-management.herokuapp.com/">https://church-management.herokuapp.com/</a>
-                </p><p>The repo for this is in this<a href="https://github.com/danielsamfdo/applara">link</a></p>
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>Laravel
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>April 2016
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="hlm" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Android Application</h4>
-            </div>
-            <div class="modal-body">
-                <!-- <img src="./Daniel Sam Pete Thiyagu_files/attendance.png" class="img-responsive img-centered" alt=""> -->
-                <p>An online website application for a religious organization written using html and firebase which helps the admins to reach out to other users on their updates to their youtube channel and events.The backend database is a noSql DB. You can check it out in <a href="https://danielsampete.000webhostapp.com/www/">https://danielsampete.000webhostapp.com/www/</a>
-                </p><p>The repo for this is in this<a href="https://github.com/danielsamfdo/hlmAndroidApp">https://github.com/danielsamfdo/hlmAndroidApp</a></p>
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>Firebase
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>August 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-
-    <div class="modal fade" id="gc" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Garbage Collector and Memory Allocator</h4>
-            </div>
-            <div class="modal-body">
-                <!-- <img src="./Daniel Sam Pete Thiyagu_files/attendance.png" class="img-responsive img-centered" alt=""> -->
-
-                <p>Click this Link for source code: <a href="https://github.com/danielsamfdo/garbage_collector">https://github.com/danielsamfdo/garbage_collector</a>
-                </p>
-                <p> I worked on the design of a memory allocator as well as a garbage collector that triggers at various instances when it requires memory as part of course requirement for COMPSCI 630.
-                </p>
-                <!-- <p>The repo for this is in this<a href="https://github.com/danielsamfdo/applara">link</a></p> -->
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>C++
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Feb 2017 - March 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-
-    <div class="modal fade" id="oracle" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Multilingual representations for cross-lingual NLP</h4>
-            </div>
-            <div class="modal-body">
-                <!-- <img src="./Daniel Sam Pete Thiyagu_files/attendance.png" class="img-responsive img-centered" alt=""> -->
-                <p>Harness unlabeled multilingual data and learn a common representation under which structure and meaning is shared across various languages. Mentors: Oracle personnel.  </p>
-                <p>The repo for this is in this<a href="https://github.com/Shamya/multiLingRep">https://github.com/Shamya/multiLingRep</a></p>
-                
-                <p>The wiki for this is in this<a href="https://github.com/Shamya/multiLingRep/wiki">https://github.com/Shamya/multiLingRep/wiki</a></p>
-
-                <p>This <a href="https://docs.google.com/presentation/d/1NM_EbD5U62_F4p8pruH4nyEK3w9tMfqOIGdOKRPZAtQ/edit#slide=id.g1f26bf60b6_0_45"> PPT </a> provides additional Information ( https://docs.google.com/presentation/d/1NM_EbD5U62_F4p8pruH4nyEK3w9tMfqOIGdOKRPZAtQ/edit#slide=id.g1f26bf60b6_0_45 )</p>
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>Python, Tensorflow, Scikit, Nltk
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Jan 2017 - May 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="prophit" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Prophit Insight</h4>
-            </div>
-            <div class="modal-body">
-                <!-- <img src="./Daniel Sam Pete Thiyagu_files/attendance.png" class="img-responsive img-centered" alt=""> -->
-                <p>    Creating a gamut of visual analytics for delivering insights in the  health care domain using Salesforce Analytics. I worked particularly on the Total Joint Replacement Condition analytics with salesforce development and publishing app packages to salesforce</p>
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong> Salesforce, Wave Analytics, Python, pgsql
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>May 2017 - Aug 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="anr" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Advanced Networks and Systems Research Lab</h4>
-            </div>
-            <div class="modal-body">
-                <!-- <img src="./Daniel Sam Pete Thiyagu_files/attendance.png" class="img-responsive img-centered" alt=""> -->
-                <p>Developed an emergency notification application that sends real-time notifications using Laravel.</p>
-                <p>Designed an automatic website generator and wireframes for the product design of the emergency notification portal</p>
-
-                
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>Laravel, Web Development, WireFraming Aws
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Nov 2016 - May 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="chronus" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Chronus</h4>
-            </div>
-            <div class="modal-body">
-                <!-- <img src="./Daniel Sam Pete Thiyagu_files/attendance.png" class="img-responsive img-centered" alt=""> -->
-                <p>Improved performance of various modules such as sending bulk invitations by 10x and rendering of web pages by 2x</p>
-                <p>Implemented and enhanced core modules for preventing past mentor matching, signup workflow of the portal,  an internal tool for automation of migration in the mentor portal and career review generation in the career development portal</p>
-                <p>Resolved critical level issues such as the inability of the customer to access the portal due to SSO issues.</p>
-                <p>Worked on multiple feature enhancements like Admin Favorite views, Bulk Loads, a few enhancements in Mentor Matching as well</p>
-                <p>Full-stack developer in Customer Success Engineering Team, Chronus iOS application Team and NCH Team</p>
-                
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>Ruby on Rails framework, Thinking Sphinx, MongoDB, MySQL
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Jun 2014 - Jul 2016
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="inthebin" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">In the Bin</h4>
-            </div>
-            <div class="modal-body">
-                <img src="https://user-images.githubusercontent.com/846229/27256498-9a53f61e-5384-11e7-9056-d2b49cda5746.png" class="img-responsive img-centered" alt="">
-                <p>In the bin is a location-based web application where users can submit locations of publicly-accessible trash and recycle bins near by.
-
-                Hacking for Good 2017 hackathon on June 17, 2017 @ Harvard Innovation Labs. Submission by team HackU:
-
-                Pankaj Bhambhani, 
-                Nitin Kishore Sai Samala, 
-                Daniel Sam Pete Thiyagu, 
-                Daigo Fujiwara
-                </p>
-
-
-                <p>Presentation slides
-                <br/>
-                <a href="https://docs.google.com/presentation/d/100pHPRdu0_BviOYKNsm83SPsRO9klxhmizqk1lga0lc/edit?usp=sharing">https://docs.google.com/presentation/d/100pHPRdu0_BviOYKNsm83SPsRO9klxhmizqk1lga0lc/edit?usp=sharing</a>
-                </p>
-
-
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>Firebase Web, Google Maps JavaScript API, Material Design Lite
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Jun 2016 - Jun 2016
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="semsim" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Semantic Textual Similarity</h4>
-            </div>
-            <div class="modal-body">
-                <p>Click this Link for more info: <a href="https://drive.google.com/file/d/0B09veTD03OS_TU45VWtZT0RFd3c/view">https://drive.google.com/file/d/0B09veTD03OS_TU45VWtZT0RFd3c/view</a>
-                    <br/>
-                Click this Link for a poster: <a href="https://drive.google.com/file/d/0B09veTD03OS_VnRaUm9TZDF4WFU/view">https://drive.google.com/file/d/0B09veTD03OS_VnRaUm9TZDF4WFU/view</a>
-                    <br/>
-                In this project, we present a comparative study to solve the problem of rating the similarity of two sentences. Our methods range from some well known corpus based methods to little known strategies for computing semantic similarity of the two given sentences. This includes computation of semantic similarity using semantic knowledge bases like WordNet, supervised learning methods like Linear Regression, Support vector machines and Multilayer Perceptron, as well as methods utilizing Word2Vec. We also use various semantic similarity metrics like Jaccard Coefficient and Containment Coefficient to aid the computation of semantic similarity. Some of our methods performed better than the standard baseline algorithm
-                </p>
-
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>python,scikit-learn,numpy
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Nov 2016 - Dec 2016
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-
-
-    <div class="modal fade" id="memcached" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Memcached</h4>
-            </div>
-            <div class="modal-body">
-                <p>Click this Link for source code: <a href="https://github.com/danielsamfdo/memcached">https://github.com/danielsamfdo/memcached</a>
-                    <br/>
-                
-                    <br/>
-                In this course project for COMPSCI 630, we were working as a team. We designed a Memcached system which can allocate a certain size of memory and added algorithms for replacement like LRU, Random Replacement when the size of the cache becomes full.
-                </p>
-
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong>C++, Socket Programming
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Apr 2017 - May 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="carsafety" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Effectiveness of Alarms</h4>
-            </div>
-            <div class="modal-body">
-                <p>Click this Link for source code: <a href="https://github.com/danielsamfdo/carSafetyStats/">https://github.com/danielsamfdo/carSafetyStats</a>
-                    <br/>
-                
-                    <br/>
-                In this individual course project for COMPSCI 687, I  designed a system to evaluate the effectiveness of alarm signals based on Reinforcement learning algorithms like Qlearning and SARSA with models based on cautious, moderately cautious and irresponsible drivers.
-                </p>
-
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong> Python
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Nov 2017 - Dec 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="bnn" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">Binary Neural Networks</h4>
-            </div>
-            <div class="modal-body">
-                <p>Click this Link for source code: <a href="https://github.com/danielsamfdo/bnn">https://github.com/danielsamfdo/bnn</a>
-                    <br/>
-                
-                    <br/>
-                In this group project for COMPSCI 682, We designed a binary neural network for image classification tasks like CIFAR10 and MNIST using standard architectures like VGG, We also experimented with different levels of quantization and with binary activations and weights.
-                </p>
-
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong> Python, Pytorch
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Nov 2017 - Dec 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="homemem" role="dialog">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header">
-              <button type="button" class="close" data-dismiss="modal">&times;</button>
-              <h4 class="modal-title">My Home Memories</h4>
-            </div>
-            <div class="modal-body">
-                <p>Click this Link to know more: <a href="https://devpost.com/software/my-home-memories">https://devpost.com/software/my-home-memories</a>
-                    <br/>
-                
-                    <br/>
-                
-                This is an Alexa based App created to helps us share personal memories and knowledge like never before.
-
-                </p>
-
-                <ul class="list-inline item-details">
-                    <li>Technologies Used:
-                        <strong> Python Flask, AWS, Alexa
-                        </strong>
-                    </li>
-                    <li>Date:
-                        <strong>Nov 2017
-                        </strong>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-    </div>
-
-
-    <!-- END BODY -->
+    <footer>
+      <span>Daniel Sam Pete Thiyagu</span>
+    </footer>
+  </div>
+</body>
 </html>
