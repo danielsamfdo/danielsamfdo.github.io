@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thinking Twice Can Make You Dumber: The Test-Time Compute Playbook Behind September's Smartest Models | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Thinking Twice Can Make You Dumber: The Test-Time Compute Playbook Behind September's Smartest Models</h1>
+<div class="meta">2026-09-27 &middot; AI infrastructure / ML architectures (test-time compute scaling)</div>
+<article class="post">
+<p><img alt="Diagram 1" src="assets/1_self_consistency_curve.png" /></p>
+<p>For a decade, making AI smarter meant one thing: train bigger. More data, more GPUs, more parameters — that was the entire playbook. Then researchers found a third axis nobody was fully exploiting: <strong>make the model think longer after the question arrives</strong>.</p>
+<p>The payoff is absurd. A model 4x smaller, given the right thinking strategy, matched or beat a model up to 14x its size on hard reasoning tasks (Snell et al., 2024). You read that right: no extra training, no extra weights — just <em>thinking</em>.</p>
+<p>This is test-time compute. It's the reason every flagship model released this month ships a "thinking" mode, and the reason September's smartest models are defined less by their parameter counts than by how they spend their time.</p>
+<h2>ELI5: studying vs. thinking during the exam</h2>
+<p>There are three ways to make someone smarter:</p>
+<ol>
+<li><strong>Study longer before the test</strong> — pre-training. Years of school, trillions of words.</li>
+<li><strong>Bring a bigger brain</strong> — parameters. More capacity to hold what was learned.</li>
+<li><strong>Think longer during the test</strong> — test-time compute. Re-read the question, try two approaches, check your work.</li>
+</ol>
+<p>For years, only (1) and (2) got funding. Then OpenAI's o1 showed that on math competitions, accuracy climbs roughly <strong>log-linearly with thinking tokens</strong> — and the whole industry pivoted. In 2026, reasoning isn't a special mode anymore. It's standard equipment: Claude Opus 5.5, GPT-5.6 Sol, Grok 4.7, DeepSeek-V4-Pro, Qwen3.8, GLM-5.3 — all "think first, then answer" by default.</p>
+<h2>How it works: four ways to spend compute after the question arrives</h2>
+<p><img alt="Diagram 2" src="assets/2_four_strategies.png" /></p>
+<p><strong>1. Sequential thinking (the long chain of thought).</strong> The model just… keeps writing before answering. Propose, reflect, backtrack, try again. Simple, and it's the foundation everything else builds on. The catch: a single reasoning request can now generate 16,000–128,000 internal thinking tokens before the final answer — 10–100x more tokens than the old one-shot models.</p>
+<p><strong>2. Self-consistency (majority vote).</strong> Ask N times, take the most common answer. On grade-school math (GSM8K), this lifted PaLM 540B from <strong>56.5% to 74.4%</strong> — a 17.9-point gain from voting alone (Wang et al., 2023). It works when correct answers cluster together in output space. It costs N× compute for sublinear gains.</p>
+<p><strong>3. Best-of-N + verifiers.</strong> Sample N solutions, then have a <em>verifier</em> model score them and pick the best. Two flavors: <strong>outcome reward models (ORMs)</strong> score the final answer; <strong>process reward models (PRMs)</strong> score every intermediate step. PRMs beat outcome-only verification by <strong>10–20%</strong> on math — because catching a wrong step is more useful than grading a wrong answer. Training them is expensive (PRM800K used ~800,000 human step-level labels), so automated PRM training is now an active research front.</p>
+<p><strong>4. Search (tree of thought / MCTS).</strong> Explore multiple reasoning paths, evaluate partial solutions, backtrack when stuck — the model as both explorer and judge. Most powerful for hard combinatorial problems, and the most complex to run.</p>
+<h2>The scaling law: a new axis, same diminishing returns</h2>
+<p>The empirical rule: <strong>quality ∝ (inference compute)^β</strong>, roughly log-linear. Doubling thinking tokens buys a reliable but shrinking accuracy gain. Typical best-of-N sweeps run N=4 to N=256, with most of the value captured by N=64.</p>
+<p><img alt="Diagram 3" src="assets/3_small_vs_big.png" /></p>
+<p>The compute-optimal finding (Snell et al., 2024) is the one that reshaped budgets: on problems where the small model has a non-trivial baseline, a smaller model with the <em>right</em> test-time strategy beats a 14x larger model with a naive one. Two mechanisms drive it: searching against dense process verifiers, and adapting the strategy to the prompt's difficulty — easy problems get iterative refinement of one solution, hard problems get broad search.</p>
+<h2>The plot twist: thinking longer can make you dumber</h2>
+<p>Here's where September 2026 got interesting. New research on large reasoning models reached the <em>opposite</em> of the "more thinking is better" story:</p>
+<ul>
+<li>On hard benchmarks (AIME25, GPQA), the model's <strong>first solution is already the optimal one 93.7% of the time</strong>.</li>
+<li>When the first answer is wrong, later thinking fixes it only <strong>2–7%</strong> of the time — most traces just stay wrong (75–83%).</li>
+<li>Worse: later thinking talks a <em>correct</em> first answer into a wrong one at rates <strong>up to 21%</strong>. The damage dwarfs the benefit.</li>
+<li>The fix — stopping the trace when it stops helping — <strong>cut token usage by up to 70%</strong>.</li>
+</ul>
+<p><img alt="Diagram 4" src="assets/4_first_is_best.png" /></p>
+<p>There's theory behind the damage. Bay &amp; Yearick's "sampling ceilings" work shows test-time sampling is <strong>cluster sampling</strong>: attempts on one problem are correlated draws, so n samples buy only n/(1+(n−1)ρ) <em>effective</em> samples — capped at 1/ρ. And majority voting has a <strong>modal ceiling</strong>: where the model's most common answer is wrong, more samples <em>sharpen the confident error</em>. Coverage (getting one right answer for a verifier to find) keeps scaling; majority vote plateaus and can anti-scale.</p>
+<p>The companion notebook reproduces all of this with exact binomial math: self-consistency 56.5% → 74.4%, coverage that never saturates, anti-scaling on wrong-mode problems, and a toy trace where taking the first answer beats taking the last.</p>
+<h2>SOTA, September 2026: the thinking leaderboard</h2>
+<p>The labs have turned these insights into product:</p>
+<ul>
+<li><strong>xAI Grok 4.7</strong> (Sept 2026): native sub-agent control tokens baked into the vocabulary — it bifurcates into parallel worker personas, writes its own test suites, then merges back. <strong>62.4% on SWE-bench Verified</strong>, a new record, with deterministic compiler verification during test-time compute filtering out bad code before you see it.</li>
+<li><strong>Anthropic Claude Opus 5.5</strong> (Sept 22) / <strong>Fable 5.1</strong> (Sept 1): adaptive thinking that allocates thought based on prompt perplexity instead of blindly burning VRAM. Opus 5.5 is the default recommendation; Fable 5.1 is for long-horizon agent work.</li>
+<li><strong>OpenAI GPT-5.6 Sol</strong>: three decoupled thinking tiers (Fast/Advanced/Extreme) controlling N parallel sampling streams.</li>
+<li><strong>DeepSeek-V4-Pro</strong>: GRPO reinforcement learning that deletes the memory-hungry critic network, plus compressed sparse attention shrinking reasoning KV caches by <strong>~90%</strong>.</li>
+<li><strong>Qwen3.8-2.4T-A95B</strong> (Aug 2026, open weights): 2.4T parameters, hybrid linear+full attention, 262K native context. Thinking mode is on by default; it samples thinking at temperature 1.0 (exploration where mistakes are cheap) but answers at 0.7 (where mistakes are terminal).</li>
+<li><strong>Zhipu GLM-5.3</strong>: unified low/high/max reasoning effort, up to <strong>128K output tokens</strong> and 1M context, reusing sparse attention indexes across MCTS + PRM verification.</li>
+<li><strong>Moonshot Kimi K3</strong>: entropy-driven dynamic thinking budgets — a token watchdog that ends the search at the optimal confidence boundary.</li>
+</ul>
+<p>The infra strain is real: reasoning turned serving clusters into memory-bandwidth machines (single-digit MFU), a single 64K-token trace can eat <strong>18 GB of VRAM</strong> in KV cache, and long traces risk infinite backtracking loops. That's why the KV-cache compression race (DeepSeek's ~90%) matters as much as the models.</p>
+<h2>The practitioner's rule: spend thinking like money</h2>
+<p>The research consensus for 2026 is a budget, not a slogan:</p>
+<ul>
+<li><strong>60–70% of queries need minimal reasoning.</strong> Match effort to difficulty — that's what adaptive thinking and effort tiers (low/high/max) are for.</li>
+<li><strong>Sample the thinking hot, answer cool.</strong> Exploration belongs in the trace; the final answer gets low temperature.</li>
+<li><strong>Verify, don't just vote.</strong> Best-of-N with a PRM beats majority vote on hard tasks; coverage has no ceiling.</li>
+<li><strong>Stop early.</strong> The first solution is usually the best; a stopping rule based on confidence can cut thinking tokens 70% with no accuracy loss.</li>
+</ul>
+<p>Test-time compute didn't replace training scale — it added a third axis. The labs that win from here are the ones that don't just think longer, but think <em>smarter about when to stop</em>.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>Thinking longer is a real scaling law: log-linear accuracy gains with inference compute.</li>
+<li>Four levers: long CoT, self-consistency (+17.9 pts on GSM8K), best-of-N + PRM verifiers (+10–20%), tree search.</li>
+<li>Small + optimal thinking can beat 14x larger + naive thinking (Snell et al., 2024).</li>
+<li>The twist: first solutions are optimal 93.7% of the time; over-thinking flips right answers wrong (up to 21%) — stop early and save 70% of tokens.</li>
+<li>Sept 2026 SOTA: Grok 4.7 (62.4% SWE-bench), Claude Opus 5.5, DeepSeek-V4-Pro (GRPO, −90% KV), Qwen3.8 open weights, GLM-5.3 (128K reasoning tokens), Kimi K3 (entropy budgets).</li>
+<li>Notebook: <code>test_time_compute.ipynb</code> — exact binomial demos of all four phenomena.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/test_time_compute.ipynb">test_time_compute.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

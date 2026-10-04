@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One Model, Three Jobs, Zero Retraining: The Spreadsheet Just Got Its Foundation Model | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>One Model, Three Jobs, Zero Retraining: The Spreadsheet Just Got Its Foundation Model</h1>
+<div class="meta">2026-09-19 &middot; Tech news / ML architectures (tabular foundation models)</div>
+<article class="post">
+<p>The most important AI release this week has 400 million parameters — and zero chat. Stable AI released LimiX-2 on September 16, 2026: a tabular foundation model you point at a messy spreadsheet, and one forward pass handles classification, regression, and missing-value imputation, with no task-specific fine-tuning. It posted a TabArena Elo of 1935 — a full 117.4 points above the previous leader — and beat AutoGluon 1.6, the industry default for automated tabular ML, across all three benchmark suites. The interesting part isn't the score. It's the training data: the model never saw a real spreadsheet. It trained on synthetic tables generated from causal theory.</p>
+<h2>ELI5: one doctor instead of three specialists</h2>
+<p>Tabular data is the unglamorous workhorse of machine learning — spreadsheets, customer records, sensor logs, medical charts. Nobody writes breathless headlines about it, but this is where most enterprise ML effort actually gets spent.</p>
+<p>The old workflow hired three separate specialists: train a classifier to predict churn, train a separate regressor to forecast revenue, train an imputer to fill in the blanks — each tuned, validated, and retrained on its own schedule. LimiX-2 is one doctor who diagnoses, prescribes, and fills in your chart gaps in a single visit. You hand it the table; it figures out which job you need from the context, in one forward pass.</p>
+<h2>How it works: why tables resisted the foundation-model wave</h2>
+<p>Text and images fell to foundation models years ago because they have uniform structure — every token is a word, every patch is pixels. A 40-column spreadsheet with missing values, mixed types, and a free-text notes column gives a transformer nothing uniform to grab onto. Worse, every table has different columns, so a model trained on one schema doesn't transfer to another the way a language model transfers to any text.</p>
+<p>The breakthrough lineage — pioneered by TabPFN — was to treat the table's own training rows as context at inference time: in-context learning for spreadsheets. Instead of learning <em>a</em> dataset, the model learns to <em>read</em> a dataset. The labeled rows are the prompt; the row you care about is the query.</p>
+<p>LimiX-2's machinery, in three pieces:</p>
+<ol>
+<li><strong>A joint-distribution objective.</strong> LimiX learns the joint distribution over all of a table's variables <em>and their missingness</em> via a masked objective: mask random cells, predict them from the rest. One frozen model then serves classification, regression, imputation — even tabular data generation — from the same machinery.</li>
+<li><strong>The Contextual Mechanism Network.</strong> Stable AI's architecture for LimiX-2. The sibling paper on LimiX-2M (arXiv 2606.04485) targeted two failure modes of this design as it scaled: low-rank collapse — internal representations degenerating into a low-dimensional subspace — and attention bottlenecks when attending over many heterogeneous columns.</li>
+<li><strong>Context-Conditional Masked Modeling (CCMM).</strong> The pretraining method: conditioned on the table's context, reconstruct masked cells. The mask <em>is</em> the task — mask the label column and you're doing classification; mask a numeric column and it's regression; mask at random and it's imputation.</li>
+</ol>
+<h2>State of the art: the numbers</h2>
+<p>TabArena overall Elo, as reported by Stable AI (LimiX-2 in its default configuration; the full benchmark):</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Elo ↑</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LimiX-2</strong></td>
+<td><strong>1935</strong></td>
+</tr>
+<tr>
+<td>TabFM+</td>
+<td>1818</td>
+</tr>
+<tr>
+<td>Causilo</td>
+<td>1790</td>
+</tr>
+<tr>
+<td>AutoGluon 1.6 (noncommercial, 4h)</td>
+<td>1789</td>
+</tr>
+<tr>
+<td>TabFM</td>
+<td>1774</td>
+</tr>
+<tr>
+<td>Mitra-v2</td>
+<td>1769</td>
+</tr>
+<tr>
+<td>EXAONE Tabular</td>
+<td>1749</td>
+</tr>
+<tr>
+<td>AutoGluon 1.6 (expert, 4h)</td>
+<td>1738</td>
+</tr>
+<tr>
+<td>AutoGluon 1.5 (expert, 4h)</td>
+<td>1648</td>
+</tr>
+<tr>
+<td>TabPFN-3</td>
+<td>1632</td>
+</tr>
+</tbody>
+</table>
+<p>Beyond Elo: improvability of 3.3% versus 6.2% for TabFM+ (lower is better — less headroom left for rivals), average rank 5.5, and an aggregated win count of 18.9 — roughly 3.6× TabFM+. On the classification split (38 datasets): Elo 1917, 94.5% win rate. On the regression split (13 datasets): Elo 2206, 96.9% win rate. It also ranks first on TALENT (1506) and BCCO (1432) — all three suites.</p>
+<p>The result that should make AutoML vendors nervous: AutoGluon — the mature, ensembled, industry-default framework — loses to a single frozen 400M-parameter network that never trains on your data at all.</p>
+<p>The genuinely interesting bet is the training data. LimiX-2 never trained on scraped real-world tables. It trained on synthetic datasets generated by structural causal models — fabricated data built to mimic the cause-and-effect relationships found in real tabular data. The analogy that sticks: teaching someone to drive in a flight simulator built from physics equations instead of dashcam footage. If the physics is right, the skills transfer cleanly and you get infinite, perfectly-labeled training data for free. If it's subtly wrong somewhere, you discover it at the worst possible moment — on someone else's production data. The benchmarks say the transfer holds across three independent suites. The open question is the ugly, department-specific spreadsheet sitting in your shared drive.</p>
+<p>Two caveats, stated plainly. First, the Elo numbers are Stable AI's own — independent replication on benchmarks they didn't choose is what settles the gap, and it hasn't happened yet. Second, the release ships under the StableAI LimiX Non-Commercial License v1.0: weights and inference code are open, but commercial deployment is restricted. That license is the thing to watch — either it keeps LimiX-2 a research artifact, or someone pays for a commercial license and the funding-round clock starts.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>One frozen model now does the three core tabular jobs.</strong> Classification, regression, imputation — one forward pass, no fine-tuning, no per-task pipelines.</li>
+<li><strong>The old ritual is dying.</strong> Train-per-task gradient boosting is still the default in production, but a 400M-parameter network just beat the best automated version of that ritual without training at all.</li>
+<li><strong>The training-data trick matters more than the parameter count.</strong> Synthetic causal data at scale is the transferable idea — expect every tabular lab to copy it within a year.</li>
+<li><strong>Watch the license, not just the leaderboard.</strong> Non-commercial licensing keeps this a research artifact until someone commercializes it.</li>
+<li><strong>Trust, then verify.</strong> Self-reported Elo is a claim, not a result. Independent replication on outside benchmarks is the milestone that matters.</li>
+</ol>
+<hr />
+<p><strong>References:</strong> <em>LimiX: Unleashing Structured-Data Modeling Capability for Generalist Intelligence</em> (arXiv 2609.17488, Xingxuan Zhang et al., Stable AI, Sep 2026) · <em>LimiX-2M: Mitigating Low-Rank Collapse and Attention Bottlenecks in Tabular Foundation Models</em> (arXiv 2606.04485) · Code and weights: github.com/limix-ldm-ai/LimiX — LimiX-2.ckpt released 16 Sep 2026, inference code on Hugging Face · Benchmarks: TabArena, TALENT, BCCO · SmartChunks: "Stable AI's LimiX-2 Crams Three ML Jobs Into One 400M-Parameter Model" (Sep 2026).</p>
+<hr />
+<h2>Diagrams</h2>
+<p><img alt="Diagram 1" src="assets/diagram-1-why-tables-are-hard.png" /></p>
+<p><img alt="Diagram 2" src="assets/diagram-2-one-model-three-tasks.png" /></p>
+<p><img alt="Diagram 3" src="assets/diagram-3-tabular-arena-elo.png" /></p>
+<p><img alt="Diagram 4" src="assets/diagram-4-synthetic-causal-pretraining.png" /></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/tabular-foundation-model.ipynb">tabular-foundation-model.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

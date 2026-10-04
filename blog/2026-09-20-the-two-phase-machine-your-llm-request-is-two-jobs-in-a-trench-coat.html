@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Two-Phase Machine: Your LLM Request Is Two Jobs in a Trench Coat | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Two-Phase Machine: Your LLM Request Is Two Jobs in a Trench Coat</h1>
+<div class="meta">2026-09-20 &middot; AI infrastructure (LLM inference serving)</div>
+<article class="post">
+<p>Every API call you make to an LLM is secretly two jobs glued together. The first reads your entire prompt in one giant matrix multiply — compute-bound, GPUs at full throttle. The second dribbles out tokens one at a time, each step re-reading the entire conversation history from memory — memory-bandwidth-bound, the GPU mostly idling. Run them on the same GPU and each one sabotages the other. The industry's 2026 answer, reached independently by half a dozen labs: <strong>stop running them on the same GPU.</strong> Split prefill from decode, and throughput per GPU roughly doubles.</p>
+<h2>ELI5: the kitchen and the delivery van</h2>
+<p>Think of a restaurant. The kitchen (prefill) cooks the whole order at once — blazing, batch-friendly, ovens full. The delivery van (decode) carries one box per trip — the speed limit is how fast you can load the van, not how fast you can drive. Now imagine one vehicle that has to be both. The delivery schedule wrecks the cooking, and the cooking wrecks the delivery.</p>
+<p>That vehicle was every serving engine before ~2024. A short "hi" and a 10,000-token document were processed by the same GPU pool in the same batch, and one long request held the whole batch hostage — classic head-of-line blocking. The fix wasn't a bigger oven. It was two separate fleets.</p>
+<h2>How it works: the five moves that made serving cheap</h2>
+<p>Modern serving stacks are built from a small set of structural moves. Here they are, cheapest insight first:</p>
+<ol>
+<li><strong>The KV cache.</strong> During decode, the model doesn't recompute attention over your prompt — it caches the key/value vectors and reads them back each step. Your 8k-token prompt becomes 8k vectors of state that must be <em>read from GPU memory every single token</em>. Decode is a memory problem, not a math problem. This one fact explains almost everything downstream.</li>
+<li><strong>PagedAttention (vLLM).</strong> Before it, the KV cache was allocated as one contiguous chunk per request — like parking each car in its own private lot. Internal fragmentation wasted up to 80% of VRAM. PagedAttention borrows the OS trick of virtual memory: fixed-size blocks, non-contiguous, shared across requests. Waste drops from ~80% to under 4%. Same GPU, five times the concurrent requests.</li>
+<li><strong>Continuous batching (Orca).</strong> Old servers waited for the slowest request in a batch to finish before starting anything new — like a bus that won't leave until every passenger reaches their destination. Continuous batching adds and removes requests <em>per iteration</em>: a finished request's slot is immediately refilled. No idling on the tail.</li>
+<li><strong>Chunked prefill (Sarathi-Serve).</strong> A 32k-token prompt's prefill can starve decode for seconds. Chunk it: slice the prefill into pieces and piggy-back each piece onto a decode iteration. Latency spikes flatten out, the GPU stays compute-saturated during decode's memory-bound phases.</li>
+<li><strong>Prefix caching (SGLang's RadixAttention).</strong> Agents resend the same 4,000-token system prompt hundreds of times a day. A radix tree stores computed prefixes and reuses them; time-to-first-token on a warm request collapses toward zero. Dynamo later lifted this same data structure to the cluster level for routing decisions.</li>
+</ol>
+<h2>State of the art: the disaggregation wave</h2>
+<p>The convergence point is <strong>disaggregated serving</strong>: physically separate GPU pools for prefill and decode, KV cache streamed between them. The research trail runs Splitwise → DistServe → Mooncake; the production packaging is <strong>NVIDIA Dynamo</strong>, an open-source orchestration layer that sits above your engine (vLLM, SGLang, TensorRT-LLM — it doesn't replace them, it coordinates them). Its machinery, per the v0.8.0 design docs:</p>
+<ul>
+<li><strong>Disaggregated prefill/decode pools</strong>, sized and scaled independently. Different SLOs for each phase: TTFT (time to first token) vs TPOT (time per output token).</li>
+<li><strong>A KV-aware smart router</strong> that routes requests to the worker with the highest cache hit rate, backed by a global radix-tree registry — prefix reuse, cluster-wide.</li>
+<li><strong>A multi-tier KV block manager</strong>: GPU → CPU → SSD → object storage, because in many cases <em>transferring</em> a KV block is faster than recomputing it.</li>
+<li><strong>NIXL</strong>, the transfer engine that moves KV cache between pools with reduced synchronization.</li>
+<li><strong>A planner</strong> that autoscales on SLA signals — a surge in long-input traffic grows the prefill pool before latency breaches, not after.</li>
+</ul>
+<p>The numbers that matter, all from the documented results on real workloads: ~3× better TTFT and ~2× average latency from KV-aware routing alone, measured on 100,000 real DeepSeek R1 queries on H100s. Disaggregation delivering 30% to 2×+ throughput per GPU on Llama-70B-FP8. And on production deployments: DeepSeek R1 on GB200 serving at 7× throughput per GPU, Kimi K2 at a 10× inference speedup. Two jobs, two fleets, and the math finally works.</p>
+<p>The parallel breakthrough is <strong>speculative decoding</strong> — the only acceleration technique that comes with a formal guarantee of identical output. A tiny draft model proposes several tokens; the big model verifies them in one parallel forward pass. Rejection sampling keeps the final distribution <em>mathematically identical</em> to the target model alone. EAGLE-3, the current dominant architecture, pushed Llama-3.1-8B on a single H100 from 158.34 to <strong>373.25 tokens/s</strong> (EAGLE-2: 244.10) — a 2.36× lift, measured on MT-Bench. NVIDIA's P-EAGLE (parallel drafting, March 2026) added another 55–69% at low concurrency over vanilla EAGLE-3 on GPT-OSS-20B, because it generates all draft tokens in one forward pass instead of autoregressively.</p>
+<p>Two honest caveats the benchmarks spell out. First, the gains are batch-size dependent: in vLLM, EAGLE-3's 1.75× at batch size 2 fades to 1.01× by batch size 56 — at saturation, verification overhead eats the draft savings. Speculative decoding is a latency technique for low-concurrency workloads, not a throughput technique for saturated ones. Second, acceptance rate is the wrong scoreboard: on SPEED-Bench, a block drafter with 75% acceptance ran 1.8× faster than a sequential drafter at 88% — because every token in a block is computed in the same parallel pass, so a rejection costs almost nothing. And the gains are workload-shaped: coding and math prompts accept ~3 tokens per step; multilingual roleplay barely 1.7. If your traffic is code, speculate aggressively. If it's multilingual chat, measure on your own traffic first.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>An LLM request is two jobs with opposite bottlenecks.</strong> Prefill is compute-bound; decode is memory-bandwidth-bound. Everything in serving stacks follows from that split.</li>
+<li><strong>The OS playbook won.</strong> Virtual memory (PagedAttention), event-loop scheduling (continuous batching), and content-addressed caching (RadixAttention) turned GPU serving into systems engineering.</li>
+<li><strong>Disaggregation is the architectural endgame.</strong> Splitwise, DistServe, Mooncake, and now NVIDIA Dynamo all converged: separate fleets, KV cache over RDMA, independent scaling. 2× throughput per GPU is the going rate.</li>
+<li><strong>Speculative decoding is the only free speedup</strong> — formally identical output, 2–3.5× typical gains at low concurrency. But it's batch-sensitive and workload-shaped; it's a latency tool, not a saturation tool.</li>
+<li><strong>Watch the economics, not the demos.</strong> Throughput per GPU and energy per token (speculative decoding cuts energy per token 30–55%) are what move prices. Every $/M-token drop in API pricing over the last two years is one of these moves, arriving one press release late.</li>
+</ol>
+<hr />
+<p><strong>References:</strong> <em>llm-inference-optimization-and-scaling</em> — balakreshnan/samples2026 (2026-05-28) · <em>NVIDIA Dynamo design docs v0.8.0</em> — abuabdurahman82/llm-systems-wiki · P-EAGLE benchmark (GPT-OSS-20B) — vllm-project.github.io, 2026-03-13 · SPEED-Bench (Llama 3.3 70B + EAGLE3, 8×H100, 2,518 tok/s) — huggingface.co/blog/nvidia/speed-bench · <em>Speculative Decoding in 2026: From EAGLE to DFlash to XPress</em> — dev.to/monuminu (Sep 2026) · <em>SPECULATIVE SPECULATIVE DECODING</em> — ICLR 2026 (openreview.net) · <em>The 2026 Playbook for Scaling LLM Inference</em> — GPUYard, Medium (Sep 2026).</p>
+<hr />
+<h2>Diagrams</h2>
+<p><img alt="Diagram 1" src="assets/diagram-1-two-jobs.png" /></p>
+<p><img alt="Diagram 2" src="assets/diagram-2-batching.png" /></p>
+<p><img alt="Diagram 3" src="assets/diagram-3-disaggregation.png" /></p>
+<p><img alt="Diagram 4" src="assets/diagram-4-speculative-decoding.png" /></p>
+<hr />
+<p><strong>Manual publish checklist</strong>
+1. Copy everything above the "Diagrams" divider into a new Medium story.
+2. Where you see "Upload Diagram N here", upload the matching PNG from <code>publish-kit-2026-09-20-diagrams/</code> and delete that marker line.
+3. Set the 5 tags listed above.
+4. Notebook link (companion tutorial, append at the end of the story or as a first comment): <code>files/inference-serving.ipynb</code> — attach the notebook from the goal workspace.
+5. Publish directly (standing approval — no draft review step).</p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/inference-serving.ipynb">inference-serving.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

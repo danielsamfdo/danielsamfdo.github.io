@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokens Are a Crutch: Why Byte Models Win the Long Game | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Tokens Are a Crutch: Why Byte Models Win the Long Game</h1>
+<div class="meta">2026-09-29 &middot; NLP updates / ML architectures (byte-level models — "Breaking the Token Ceiling", arXiv 2609.12303)</div>
+<article class="post">
+<p><img alt="Diagram 1" src="assets/d1_scaling_crossover.png" /></p>
+<p>Every language model you've ever used has a secret: before it reads your prompt, a tokenizer chops it into chunks. "Tokenization" becomes ["Token", "ization"]. Hindi becomes confetti. Chinese becomes sawdust. This chopping step is treated as settled infrastructure — as permanent as the transformer itself.</p>
+<p>A September 2026 paper from the University of Washington and Meta FAIR says it's a crutch. Their finding: tokenized models sprint ahead early in training, then plateau. Byte-level models — models that read raw bytes, no tokenizer at all — start slower and keep climbing. Distill a 1B byte-level student from a tokenized Llama 3-8B teacher with the right conversion, and the fitted scaling laws put it <strong>4% ahead of the distilled token model at the compute asymptote</strong>, while needing <strong>1/6th the training data</strong> and <strong>1/5th the teacher-logit storage</strong>. The catch: the headline wins live in extrapolated scaling curves, not in today's checkpoints. Let's separate the proven from the projected.</p>
+<h2>ELI5: the alphabet vs. the Lego set</h2>
+<p>Imagine teaching a child to read two ways. The token way: hand them a box of 128,000 pre-glued word-chunks ("the", "ing", "Ġtoken") and tell them to assemble meaning from chunks. Fast to get going — most English text is already in the box. The byte way: hand them 256 letters (every possible byte) and make them learn that "t"+"o"+"k"+"e"+"n" spells a word. Painfully slow at first. But the byte child learns <em>how letters combine</em>, so nothing is ever out of vocabulary — a typo, a new emoji, Hindi, Arabic, all just more letters.</p>
+<p>The pre-glued chunks have a hidden tax. I measured it this week with a real BPE tokenizer (tiktoken's cl100k_base) on the same sentence in four scripts:</p>
+<p><img alt="Diagram 2" src="assets/d2_fertility.png" /></p>
+<p>English needs <strong>12 tokens</strong>. Hindi needs <strong>51</strong> — 4.25x as many for the same meaning. Arabic needs 40. At per-token API pricing, a Hindi user pays 4x the English user for the same sentence. The tokenizer is English-shaped, and everyone else pays the difference. A byte model charges by the byte: 66 bytes for English, 128 for Hindi — a 1.9x ratio that reflects actual information content, not tokenizer favoritism.</p>
+<h2>How it works: the teacher speaks tokens, the student speaks bytes</h2>
+<p>The paper's real question is narrower and more practical than "are bytes better": <strong>can you distill a byte-level student from a big tokenized teacher?</strong> This matters because all the good teachers — Llama 3, Qwen, Gemma — are tokenized. If byte students can't learn from them, byte pretraining starts from zero.</p>
+<p>The hard part is the conversion. The teacher outputs probabilities over 128,000 tokens. The student needs probabilities over 256 bytes. A token like "tokenizer" spans 9 bytes — so one token probability has to be split across 9 byte positions, and one byte position can be reached through <em>many</em> token paths ("token"+"izer", "tok"+"enizer", "tokenizer" whole...). The paper gives two converters, shown in Diagram 3:</p>
+<p><img alt="Diagram 3" src="assets/d3_marginalize_vs_eot.png" /></p>
+<p><strong>Marginalize-It</strong> (approximate): for each byte, sum the teacher's probability over every token segmentation that could produce it. The problem: it sums over segmentations the tokenizer would <em>never actually emit</em>, so the conversion is lossy — like reconstructing a recipe from the smell alone.</p>
+<p><strong>End-of-Token</strong> (exact): add one symbol to the byte alphabet — an explicit end-of-token marker ⟨eot⟩. Now the token→byte mapping is bijective: every tokenization corresponds to exactly one byte+⟨eot⟩ sequence, so the teacher's full distribution transports to the student with zero approximation loss. 256 bytes + 1 marker = a 257-symbol vocabulary, versus 128,000 tokens.</p>
+<p>The students are parameter-matched 1B models trained on up to <strong>1 trillion bytes</strong> against a Llama 3-8B teacher, evaluated on six downstream benchmarks (ARC-Easy, ARC-Challenge, HellaSwag, PIQA, MBPP, Natural Questions) plus two more in the full eval.</p>
+<h2>The state of the art: what the numbers actually say</h2>
+<p>The fitted power laws tell a clean story across training FLOPs, validation bits-per-byte, and downstream accuracy:</p>
+<ul>
+<li><strong>Token-distilled students lead at low compute, then flatten.</strong> The tokenizer is genuinely useful scaffolding early on.</li>
+<li><strong>Byte-distilled students cross the token curve as compute grows</strong> and keep climbing where token models saturate.</li>
+<li><strong>End-of-Token beats Marginalize-It by 1.9%</strong> at the asymptote — exactness pays.</li>
+<li><strong>End-of-Token leads the distilled token model by 4%</strong> at the asymptote, and leads open-weight 1B–2B models by up to 6.5% (Llama 3.2-1B), 8.1% (Gemma-3-1B-pt), and 2.1% (Gemma 2B) on averaged downstream tasks.</li>
+<li><strong>Efficiency is the sleeper result:</strong> the byte student matches the distilled token model on <strong>1/6th the training data</strong>, and the 256-entry vocabulary cuts teacher-logit storage to <strong>1/5th</strong> — distillation runs get cheaper to store and replay.</li>
+</ul>
+<p><img alt="Diagram 4" src="assets/d4_efficiency.png" /></p>
+<p>Three honest caveats, because this is where most coverage goes wrong:</p>
+<ol>
+<li><strong>The viral thread was wrong about what's new.</strong> A September X thread presented Meta's Byte Latent Transformer as a brand-new breakthrough. BLT is from December 2024. The new paper is this distillation study — same research lineage (five authors overlap), different contribution. The byte-scaling story is a <em>trend across papers</em>, not one eureka.</li>
+<li><strong>The biggest wins are extrapolations.</strong> The paper's headline gaps come from fitted scaling laws extended past the compute actually tested. At today's trained checkpoints, the byte models are competitive, not dominant. Treat the asymptote as a forecast with error bars, not a result.</li>
+<li><strong>The teacher is still tokenized.</strong> This is distillation <em>from</em> token models, not proof that token-free pretraining at frontier scale works. The student inherits the teacher's knowledge; nobody has shown a byte model learning everything from scratch at 70B+ scale.</li>
+</ol>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Tokenization is a performance ceiling, not just plumbing.</strong> It plateaus models early and taxes non-English languages 2–4x. If you serve multilingual users, your tokenizer is a pricing decision.</li>
+<li><strong>Distillation is the bridge.</strong> You don't need to abandon your tokenized teachers — End-of-Token conversion moves their knowledge into byte students losslessly, on 1/6th the data.</li>
+<li><strong>The playbook for going byte:</strong> small model + long training budget + multilingual workload. That's exactly where the scaling laws say bytes win. Short-budget English-only training? Keep your tokenizer.</li>
+<li><strong>Watch the compute crossover, not the hype.</strong> Byte models lose at the budgets most teams train at today and win where the curves cross. The strategic question is where your training budget sits relative to that crossing point — and it's moving left as methods improve.</li>
+</ul>
+<p>The tokenizer had a 10-year run as unquestioned infrastructure. It earned it. But "the way we've always done it" is not a scaling law — and now we have the scaling laws.</p>
+<hr />
+<p><em>Paper: Marathe et al., "Breaking the Token Ceiling: Distilling Smaller, Stronger Byte Models," arXiv 2609.12303 (Sep 11, 2026). Fertility measurements mine, via tiktoken cl100k_base. Scaling curves in Diagram 1 are schematics fitted to the paper's reported trends — asymptote gaps are the paper's numbers; crossover placement is illustrative.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/byte_token_ceiling.ipynb">byte_token_ceiling.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

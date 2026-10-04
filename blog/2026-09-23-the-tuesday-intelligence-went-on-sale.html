@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Tuesday Intelligence Went on Sale | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Tuesday Intelligence Went on Sale</h1>
+<div class="meta">2026-09-23 &middot; Tech news / LLM economics (frontier price war)</div>
+<article class="post">
+<p>On September 22, 2026, the two leading AI labs shipped new frontier models <strong>on the same afternoon</strong> — and both cut prices. OpenAI launched <strong>GPT-6 Sol</strong> ($2/$10 per million tokens, down 50% from GPT-5.6 Sol's promo prices) and <strong>GPT-6 Luna</strong> ($0.10/$0.50). Anthropic launched <strong>Claude Opus 5.5</strong> at $4/$20, a 20% list cut from Opus 5's $5/$25, with cache reads slashed 60% to $0.20 per million.</p>
+<p>This is not a normal price war. A normal price war means someone is hurting. This one means inference got <strong>structurally cheaper</strong> — and both labs decided to pass it through. Here's what a token actually costs, why the price is falling, and why the price list still lies to you.</p>
+<h2>ELI5: the restaurant kitchen</h2>
+<p><strong>The bill.</strong> When you call an API, you pay per token — roughly 4 characters of text. But tokens aren't free to produce: every one is computed by a GPU doing matrix math. Your prompt is processed once ("prefill"), and then the model generates output <strong>one token at a time</strong>, each token requiring a full pass through the model ("decode"). Decode is the expensive part — it's serial, and you can't parallelize it. <strong>Output tokens cost ~5× input tokens</strong> across almost every price list. That's the fundamental asymmetry.</p>
+<p><img alt="Diagram 1" src="assets/1_price_collapse.png" /></p>
+<p><strong>The printing press.</strong> Why is intelligence getting cheaper? Four forces:</p>
+<ul>
+<li><strong>Bigger batches.</strong> One GPU serving 64 users at once costs roughly the same as serving one. Providers have gotten very good at batching strangers' requests together.</li>
+<li><strong>Cache hits.</strong> In an agent loop, the same prompt prefix (system instructions, codebase context) is resent every turn. The model's internal "memory" of that prefix — the KV cache — can be <strong>reused instead of recomputed</strong>. Anthropic says cache reads now make up the <em>majority</em> of agentic and coding-work costs — which is exactly why both labs are cutting cache prices harder than list prices.</li>
+<li><strong>Better kernels.</strong> Optimized math (FlashAttention descendants, better memory layouts) squeezes more tokens per GPU-hour every year.</li>
+<li><strong>Cheaper tiers.</strong> Distilled smaller models (GPT-6 Luna at $0.10 input) do the easy work for a tenth of the price. Most tokens never need the flagship.</li>
+</ul>
+<p><strong>The lunch menu.</strong> Think of it like a restaurant: the flagship model is the chef's tasting menu; the mini tier is the lunch special, same kitchen, smaller portions. Both labs are expanding the lunch menu.</p>
+<h2>How it works: the anatomy of an API bill</h2>
+<p>Your invoice has four lines, and they don't move together:</p>
+<ul>
+<li><strong>Input tokens</strong> — your prompt. Cheapest per unit ($2–10 per million at the frontier).</li>
+<li><strong>Output tokens</strong> — the model's answer. ~5× input price. In reasoning/agent workloads, outputs (including chain-of-thought) dominate the bill.</li>
+<li><strong>Cache reads</strong> — reusing a previously computed prompt prefix. Now $0.20/M on Opus 5.5 (down 60% from $0.50) and $0.25/M on Fable 5.1 (down 75% from $1.00). As a fraction of input price: <strong>10% on most Claude models, 5% on Opus 5.5, 2.5% on Fable 5.1.</strong> That's the real discount, and it's aimed squarely at agentic loops that resend context every turn.</li>
+</ul>
+<p><img alt="Diagram 2" src="assets/2_cache_read_collapse.png" /></p>
+<ul>
+<li><strong>Cache writes</strong> — creating a new cache entry. Opus 5.5: $5 for a 5-minute write, $8 for a 1-hour write. You pay to write once, read cheaply many times.</li>
+</ul>
+<p>Then come the pricing knobs on top:</p>
+<ul>
+<li><strong>Fast mode (Opus 5.5, research preview, API only):</strong> pay <strong>2×</strong> for up to <strong>2.5× output speed</strong>. Cheaper <em>per second</em>, more expensive <em>per token</em> — worth it when latency is the product.</li>
+<li><strong>Batch API:</strong> <strong>50% off</strong> ($2/$10 for Opus 5.5) if you can wait hours instead of seconds.</li>
+</ul>
+<p>Anthropic claims Opus 5.5 is <strong>~40% cheaper on typical workloads</strong> and 30%+ faster on output than Opus 5. Note the word <em>typical</em> — the fine print matters, as we'll see.</p>
+<h2>State of the art: the September 22 scoreboard</h2>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Input $/M</th>
+<th>Output $/M</th>
+<th>Cache read $/M</th>
+<th>Headline benchmark</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GPT-6 Sol</td>
+<td>2</td>
+<td>10</td>
+<td>—</td>
+<td>DeepSWE 68.8%; "half as many mistakes" as predecessor on factuality evals (OpenAI)</td>
+</tr>
+<tr>
+<td>GPT-6 Luna</td>
+<td>0.10</td>
+<td>0.50</td>
+<td>—</td>
+<td>DeepSWE 66.6%; AutomationBench 33.2% at <strong>$0.27/task</strong></td>
+</tr>
+<tr>
+<td>Claude Opus 5.5</td>
+<td>4</td>
+<td>20</td>
+<td>0.20</td>
+<td>Terminal-Bench-Science 0.1: 58.7% (Opus 5: 29%); SWE-bench Pro 89.9%; AutomationBench 40%</td>
+</tr>
+<tr>
+<td>Fable 5.1 (Sept 1)</td>
+<td>10</td>
+<td>50</td>
+<td>0.25</td>
+<td>Terminal-Bench 4.0: 55.8%</td>
+</tr>
+</tbody>
+</table>
+<p>(All benchmark figures are vendor-reported. OpenAI's cuts are attributed to caching + inference efficiency.)</p>
+<p><strong>Capability per dollar is exploding.</strong> Opus 5.5 scores <strong>58.7% on Terminal-Bench-Science 0.1 — double Opus 5's 29%</strong> — while costing 20% less on the price list. Anthropic claims it matches Astra on Terminal-Bench 4.0 for ~40% of the cost and beats GPT-5.6 Sol by 11 points on CursorBench for ~a third of the cost. OpenAI claims Sol makes half as many factual errors as its predecessor while costing half as much. Capability per dollar is improving faster than prices are falling.</p>
+<p><img alt="Diagram 3" src="assets/3_capability_per_dollar.png" /></p>
+<p><strong>But the per-token vs per-task trap.</strong> Artificial Analysis found that at max effort, <strong>Fable 5.1 costs ~20% MORE per task than Fable 5</strong> — because it emits <strong>~1.7× as many output tokens</strong>, and output tokens are the expensive ones. Its per-token prices are lower; its <em>task</em> bill is higher when it thinks hardest. Anthropic itself concedes the point: "benchmark margins have become a less reliable guide to real-world differences." Optimize your bill for tokens-per-task, not dollars-per-token.</p>
+<p><img alt="Diagram 4" src="assets/4_token_vs_task_cost.png" /></p>
+<p><strong>The benchmark-gaming caveat.</strong> Every lab picks the benchmark where it wins: OpenAI leads with factuality and DeepSWE, Anthropic with Terminal-Bench and SWE-bench Pro. METR and Frontier Design ran pre-release evals of Opus 5.5 but <strong>haven't published results as of Sept 22</strong> — treat every figure above as vendor-reported, with error bars. It's marketing with a p-value until independent labs weigh in.</p>
+<p><strong>The open-weights counter-pressure.</strong> Meanwhile Stepfun's <strong>Step 5</strong> preview — a 600B sparse MoE with 27B active parameters and 1M-token context — prices at <strong>$1/$2.70 per million</strong>, scores an Artificial Analysis index of 44 (matching Kimi K3 at ~4× the size), and plans <strong>open weights on October 15</strong>. If that ships, the price floor drops out of the whole market. The labs cutting prices this week know it.</p>
+<p><strong>Safety, quickly:</strong> Opus 5.5 shows an 85% reduction in containment-boundary circumvention attempts, ties Fable 5.1 for the lowest attack success rate on Gray Swan's prompt-injection test, and — notably — its thinking mode <strong>cannot be disabled</strong>. Sonnet 5.5 and Haiku 5.5 land in the coming weeks.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>Two frontier launches, one afternoon, every price cut</strong>: GPT-6 Sol $2/$10 (−50%), GPT-6 Luna $0.10/$0.50, Opus 5.5 $4/$20 (−20% list, −60% on cache reads). Cache cuts are the real weapon — that's where agentic costs live.</li>
+<li><strong>Your bill has four lines, and cache reads are now the interesting one</strong>: Opus 5.5 cache reads are 5% of input price; Fable 5.1's are 2.5%. Architect your agent loops to re-read, not re-send.</li>
+<li><strong>Capability per dollar is improving faster than prices</strong>: Opus 5.5 doubles Opus 5's Terminal-Bench-Science score (29% → 58.7%) at a lower list price; Sol halves both errors and price. The frontier is deflationary.</li>
+<li><strong>Dollars-per-token lies; dollars-per-task tells the truth</strong>: Fable 5.1 is 25% cheaper on typical workloads but ~20% pricier per task at max effort because it burns 1.7× the output tokens. Watch the output token multiplier, not the price list.</li>
+<li><strong>Treat vendor benchmarks as vendor-reported until METR and Frontier Design publish.</strong> And watch October 15: if Step 5's open weights ship at $1/$2.70, this week's cuts were just the opening bid.</li>
+</ol>
+<p><em>Sources: Reuters (OpenAI GPT-6 launch pricing, Sept 22, 2026); Anthropic announcement (Sept 22, 2026, via PYMNTS/AIWeekly coverage); Gangsta AI (GPT-6 benchmark coverage); Digital Applied (pricing breakdown); Artificial Analysis (Fable 5.1 token-usage analysis; Step 5 index score).</em></p>
+<hr />
+<p><strong>Suggested Medium tags:</strong> artificial-intelligence, large-language-models, llm, openai, anthropic</p>
+</article>
+
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

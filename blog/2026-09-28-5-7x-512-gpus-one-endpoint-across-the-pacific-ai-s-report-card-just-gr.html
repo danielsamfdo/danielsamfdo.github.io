@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5.7x, 512 GPUs, One Endpoint Across the Pacific: AI's Report Card Just Grew Up | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>5.7x, 512 GPUs, One Endpoint Across the Pacific: AI's Report Card Just Grew Up</h1>
+<div class="meta">2026-09-28 &middot; AI infrastructure / benchmarks (MLPerf Inference v6.1)</div>
+<article class="post">
+<p><img alt="Diagram 1" src="assets/1_rag_pipeline_amdahl.png" /></p>
+<p>For years, AI benchmarks answered one question: how fast is this chip on this model? A synthetic prompt went in, tokens came out, a number got recorded. That was fine when AI meant "one model, one GPU, one answer."</p>
+<p>That world is gone. Nobody ships a bare model anymore. They ship <em>pipelines</em> — an embedder, a vector database, a reranker, and three LLM calls working a question like a relay team. Or an agent that reads code, runs commands, and fixes bugs before answering. Timing one runner and calling it the team's score was becoming fiction.</p>
+<p>On September 16, MLCommons released <strong>MLPerf Inference v6.1</strong>, and it finally grades the relay team. Two brand-new tests: an <strong>End-to-End RAG</strong> benchmark that times the entire retrieval pipeline as one thing, and an <strong>Edge Agentic</strong> benchmark that replays 1,007 turns of a real coding agent on a desktop. A record 30 organizations submitted 120 systems and 486 results — and buried in the numbers is a clear signal about where the industry's engineering energy is actually going.</p>
+<h2>ELI5: the report card grew up</h2>
+<p>Think of AI benchmarks as report cards. Until now, the report card had one subject: math. "How fast can you solve this equation?" Useful — but your AI doesn't do math homework all day. It searches documents, reads them, reasons over what it found, and writes an answer. That's a group project.</p>
+<p>The old test timed one kid on the math worksheet and extrapolated. The new test times the whole group project: the researcher (embedder), the librarian (retriever), the editor (reranker), and the writer (LLM). If the writer is a genius but the librarian is slow, the project is slow — and now the report card says so.</p>
+<p>The second new test is even more relatable. It takes a recording of an AI coding assistant doing real work — 20 full sessions, 1,007 turns of reading code, running commands, fixing bugs — and replays it on a single machine, one request at a time, exactly the way a developer on a laptop runs an agent. Then it measures how long each turn takes. As first-time submitter Atlas Inference put it: <em>"For the past few years, serious agentic work meant a datacenter round trip. That assumption is what this submission is meant to retire."</em></p>
+<h2>How it works, part 1: the RAG test is four models and a database</h2>
+<p>The End-to-End RAG benchmark measures a complete question-answering pipeline — several models and a vector database working together. The reference implementation runs <strong>four models at once</strong>: gpt-oss-120B handles query decomposition, sufficiency checking, and answer generation; gpt-oss-20B grades retrieved documents; e5-base-v2 produces embeddings; and ColBERTv2 reranks passages. The corpus is 107,484 passages chunked from 2,515 HTML files; the questions are 824 multi-hop tasks from Google's FRAMES dataset; and each task can loop through <strong>up to 5 retrieval rounds</strong> before the pipeline decides it has enough evidence.</p>
+<p>Two numbers come out: documents per second for <em>building</em> the FAISS HNSW vector index, and tasks per second for <em>answering</em> questions against it. A Llama 3.1-8B judge scores the final answers against a 97% accuracy target — and the judging isn't timed, so you can't buy accuracy with a slow judge.</p>
+<p>Why does this matter? Because of the oldest trap in systems work, and Diagram 1 shows it. Speed up <em>only</em> the answer-generation stage 3x — a faster GPU, speculative decoding, whatever — and the end-to-end pipeline moves only <strong>1.83x</strong>. Even an infinitely fast LLM caps out at ~3.1x, because the other stages (retrieve, rerank, decompose, grade) don't care how fast your model is. Meanwhile, modest 2–4x improvements <em>spread across every stage</em> beat the single-stage 3x: 2.12x end-to-end.</p>
+<p>The companion notebook reproduces all of this in pure numpy: the Amdahl sweep, the "3x headline, 1.83x reality" trap, and the balanced-optimization winner. The moral the benchmark enforces is the same one production teams learn the hard way: <strong>per-stage speedups lie about the pipeline.</strong> If your workload is a pipeline, a vendor's "3x faster model" headline might be 1.8x for you — and MLPerf now reports your number.</p>
+<h2>How it works, part 2: a 1,007-turn agent, replayed on a desktop</h2>
+<p><img alt="Diagram 2" src="assets/2_agentic_edge.png" /></p>
+<p>The Edge Agentic Inference benchmark targets the coding-assistant pattern that has moved onto workstations. The model is Qwen3.6-27B with thinking <em>off</em>, run as a Q4_K_M GGUF under llama.cpp with a 32K context window. The workload is a recorded replay of <strong>20 agentic coding trajectories from SWE-bench Verified — 1,007 turns total</strong>, driven in a single stream with one request in flight, the way a developer on a laptop runs an agent. The reported metric is mean latency per turn, with time-to-first-token and time-per-output-token distributions alongside. Accuracy is gated separately: the setup must hit 97% of the reference score on BFCL v4, the function-calling benchmark.</p>
+<p>The headline result from Atlas Inference: an NVIDIA DGX Spark completed all 1,007 turns in under 64 minutes at 20.1 tokens/s — and an AMD Strix Halo desktop (Ryzen AI Max+ 395) did it at <strong>19.63 tokens/s</strong>. Near parity between a purpose-built AI box and a desktop APU. That's the kind of result this test was designed to surface, and it answers a question every engineering org is asking right now: can this agent run locally?</p>
+<p>Diagram 2 shows why the benchmark runs with thinking off: a toy model of per-turn latency (time-to-first-token + tokens × time-per-token) says reasoning's 5x token appetite would blow mean latency per turn up ~4.5x. When every turn is a round trip with the user waiting, tokens <em>are</em> latency.</p>
+<h2>SOTA, September 2026: what the round actually revealed</h2>
+<p><img alt="Diagram 3" src="assets/3_per_accelerator_gains.png" /></p>
+<p><strong>The pace.</strong> Best per-accelerator results: DeepSeek-R1 is <strong>5.7x faster than a year ago</strong> (v5.1 → v6.1), vision-language models are <strong>2.99x faster than six months ago</strong> (v6.0 → v6.1), and Llama2-70B's median per-chip throughput is <strong>5.58x up over six rounds</strong> since early 2024. Some of that is new hardware — the R1 and VLM jumps rode NVIDIA's Vera Rubin NVL72 in the new preview category. But a serious slice is pure grind: some v6.1 submissions moved from FP8 to <strong>FP4</strong> without losing accuracy, Intel's Xeon 6980P gained <strong>+142% on identical silicon</strong> from software alone, and AMD's ROCm v7 lifted GPT-OSS-120B <strong>+38% on the same MI355X hardware</strong>. Half of every "hardware generation" is a software release.</p>
+<p><strong>The new silicon.</strong> Vera Rubin NVL72 made its MLPerf debut (NVIDIA claims 2.5x DeepSeek-R1 and 3.7x Qwen3-VL throughput over GB300 NVL72). AMD showed three CDNA 4 parts including the MI350P — a dual-slot PCIe card (128 CUs, 144GB HBM3E) for standard enterprise chassis. Intel's Arc Pro B70 arrived in a 4-GPU, 128GB-VRAM node that ran everything from Whisper to the new RAG test. Speculative decoding — previously allowed only for DeepSeek-R1 — is now officially supported in the GPT-OSS-120B interactive scenario, and the VLM test got a new interactive scenario targeting ~1.5-second responses.</p>
+<p><strong>The scale-out.</strong> Crusoe ran the largest system in MLPerf Inference history: <strong>512 AMD MI355X GPUs across 64 nodes</strong> on standard RoCE Ethernet, pushing <strong>5.75 million tokens/s</strong> on GPT-OSS-120B with near-linear scaling from 1 to 64 nodes. Multi-node submissions hit a record 16 — up from zero two years ago. And the exotic entries are the real signal: Cisco pooled <strong>8 NVIDIA H200s and 8 AMD MI350Xs into one inference pool</strong> (the round's first cross-vendor heterogeneous system), while MangoBoost and Dell ran <strong>four sites on two continents as one endpoint across the Pacific at 97% scaling efficiency</strong> — and claimed the first prefill/decode-disaggregated results on AMD GPUs.</p>
+<p><img alt="Diagram 4" src="assets/4_scale_out.png" /></p>
+<p><strong>The workload shift.</strong> For the first time, GPT-OSS-120B drew the most submissions (112) — dethroning Llama2-70B — with DeepSeek-R1 and Qwen3-VL close behind. The benchmark community, which prizes stability above all, has fully embraced mixture-of-experts. Google's entire submission focused on DeepSeek-R1, citing the industry's shift to massive MoE architectures.</p>
+<h2>The practitioner's rule: buy endpoints, not chips</h2>
+<p>Three things to take from this round if you deploy models:</p>
+<ol>
+<li><strong>Benchmark your pipeline, not your model.</strong> The E2E RAG test exists because per-stage numbers mislead. If your workload is embed → retrieve → rerank → generate, optimize the pipeline's critical path — spreading effort across stages beats tripling one (2.12x vs 1.83x end-to-end in the notebook's toy model).</li>
+<li><strong>Software is half the hardware story.</strong> A +142% gain on identical silicon is a free generation. Before buying new accelerators, ask what the serving stack is leaving on the table.</li>
+<li><strong>The benchmark is moving to your side of the glass.</strong> Sixteen of 30 submitters already used MLPerf's new API-centric harness — a true client/server setup over standard APIs, the way datacenters actually serve inference. MLPerf Endpoints opens in October 2026 and <strong>replaces Inference as the datacenter benchmark in 2027</strong>. Soon the number everyone quotes won't be "tokens per chip" but "tokens per dollar at your latency SLA." That's the number you were always trying to compute anyway.</li>
+</ol>
+<h2>Takeaways</h2>
+<ul>
+<li>MLPerf Inference v6.1 (Sept 16, 2026): record 30 submitters, 120 systems, 486 results.</li>
+<li>Two new tests grade the way AI is actually used: an end-to-end RAG pipeline (4 models + vector DB, 824 multi-hop questions, up to 5 retrieval rounds) and an edge agentic benchmark (1,007-turn SWE-bench replay, mean latency per turn).</li>
+<li>Per-accelerator pace: DeepSeek-R1 5.7x/year, VLM 2.99x/6 months, Llama2-70B 5.58x over 6 rounds — new silicon (Vera Rubin, MI350P, Arc Pro B70) plus FP4 and software-only gains (Xeon +142% same chip).</li>
+<li>Speculative decoding is now officially benchmark-supported for GPT-OSS-120B; Vera Rubin, MI350P, and Arc Pro B70 posted their first peer-reviewed numbers.</li>
+<li>Scale is the story: 512 GPUs at 5.75M tok/s, cross-vendor pools (H200 + MI350X), and one endpoint spanning the Pacific at 97% efficiency.</li>
+<li>MLPerf Endpoints opens Oct 2026 and replaces Inference for datacenters in 2027: benchmarks are moving from timing chips to timing endpoints.</li>
+<li>Notebook: <code>mlperf_inference_v61.ipynb</code> — the Amdahl math, the per-stage trap, and the agentic latency model in pure numpy.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/mlperf_inference_v61.ipynb">mlperf_inference_v61.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

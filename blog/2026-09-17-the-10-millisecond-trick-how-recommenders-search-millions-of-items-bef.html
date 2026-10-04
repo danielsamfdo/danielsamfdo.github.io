@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The 10-Millisecond Trick: How Recommenders Search Millions of Items Before You Blink | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The 10-Millisecond Trick: How Recommenders Search Millions of Items Before You Blink</h1>
+<div class="meta">2026-09-17 &middot; Recommendation systems (two-tower retrieval)</div>
+<article class="post">
+<p>One-paste order for Medium's new-story editor: <strong>title → body → diagrams → notebook link → checklist</strong>.</p>
+<hr />
+<p>Every time you open Netflix, YouTube, or TikTok, a model scores millions of items against your taste — and finishes in under 100 milliseconds. It doesn't actually look at every item. It cheats, in a way that works. Here's the architecture every production recommender in 2026 is built on, and what this year's research just changed about it.</p>
+<h2>ELI5: the funnel</h2>
+<p>Imagine a library with 10 million books and one librarian who must hand you 10 books in under a tenth of a second. She can't read them all, so she works in stages:</p>
+<ol>
+<li><strong>Retrieval (~10ms):</strong> glance at your reading history and pull 500 roughly-matching books off the shelves. Fast and loose — optimized for <em>recall</em> (don't miss good candidates).</li>
+<li><strong>Ranking (~30ms):</strong> actually read the blurbs of those 500, pick the 20 best. Slow and careful — optimized for <em>precision</em>.</li>
+<li><strong>Re-ranking (~10ms):</strong> enforce variety (not five thrillers in a row), drop out-of-stock items, slot in a sponsored pick, apply business rules.</li>
+</ol>
+<p>This three-stage funnel is the canonical design, from YouTube's 2016 system to everything shipping today. No single model meets a 100ms latency budget over a million-item catalog, so you split the job: cheap models shrink the pool, expensive models pick the winners. The latency budget is a law of physics — the funnel isn't going anywhere.</p>
+<h2>How it works: two towers and a dot product</h2>
+<p>The retrieval stage — the first, fastest cut — is dominated by the <strong>two-tower model</strong>. Two neural networks:</p>
+<ul>
+<li>A <strong>user tower</strong> eats your features (watch history, clicks, profile) and outputs a vector <code>u</code> — say, 256 numbers that encode your taste.</li>
+<li>An <strong>item tower</strong> eats item features (title, description, category) and outputs a vector <code>v</code> — 256 numbers encoding what the item is.</li>
+</ul>
+<p>Your score for an item is the dot product <code>u·v</code>. Simple. The magic is the serving trick: <strong>every item vector is precomputed offline and stored in an approximate nearest-neighbor index (HNSW)</strong>. At request time, the user tower runs <em>once</em> to produce <code>u</code>, and the index returns the 500 nearest item vectors in single-digit milliseconds. The item side never runs online at all. That's the 10-millisecond trick: turn recommendation into a nearest-neighbor lookup.</p>
+<p>Training is where the subtlety lives. You can't compute a softmax over millions of items per training example, so you use <strong>sampled softmax</strong>: score the positive against a few hundred negatives and treat that as the distribution. Which negatives you sample decides everything:</p>
+<ul>
+<li><strong>In-batch negatives:</strong> treat other users' positives in the same minibatch as your negatives. Nearly free — but limited by batch size and biased toward popular items.</li>
+<li><strong>Out-of-batch negatives:</strong> sample randomly from the full catalog. Diverse, but mostly "easy" negatives the model separates trivially. Wasted compute.</li>
+<li><strong>Mixed:</strong> combine both. The industry default.</li>
+<li><strong>LogQ correction</strong> (Google, since adopted by ByteDance and Kuaishou): subtract the log sampling probability from each logit, so popular items aren't unfairly penalized for appearing as negatives constantly.</li>
+</ul>
+<p>Get the negatives wrong and you don't just lose accuracy — you build a <strong>popularity feedback loop</strong>: popular items get surfaced more, get clicked more, train the model to surface them more. Breaking that loop is where 2026's research is aimed.</p>
+<h2>State of the art</h2>
+<p><strong>Meta fixed the negatives (July 2026).</strong> In <em>Real-Time Hard Negative Sampling via LLM-based Clustering for Large-Scale Two-Tower Retrieval</em>, the team clusters items with an LLM, then samples negatives <em>from the same cluster as the positive</em> — items genuinely similar to the thing the user clicked, instead of random catalog filler. Their GOOBS system generates these on the fly during training and scales to billions of examples. Deployed as a retrieval source in a multi-source production system: <strong>+53% CTR on its served impressions</strong> versus the prior source model, with measured popularity-bias reduction. The headline is architectural heresy: negatives, not model size, were the bottleneck.</p>
+<p><strong>Sequential recommendation went retrieval-native (ICLR 2026).</strong> <em>RetrievalFormer</em> reformulates sequential recommendation as a dual-encoder problem: decouple item representations from user-sequence modeling so that ANN search <em>is</em> the serving mechanism — no more O(N) scoring of the catalog at inference. It matches strong transformer baselines (SASRec, BERT4Rec) on accuracy while running retrieval-speed inference. And because items are encoded from features rather than IDs, it generalizes to unseen items: 8.0–22.7% Recall@20 under a strict 100%-cold-start protocol (with the honest caveat of a 25–35% drop versus warm items).</p>
+<p><strong>Semantic tokens beat raw IDs.</strong> The TTDS framework (twin-tower dynamic semantic token generator) replaces item IDs with learned semantic tokens that both towers coordinate around: <strong>+19.41% Hit-Rate and +20.84% NDCG</strong> on average over prior SOTA across three public datasets. Generative retrieval (TIGER, which predicts semantic IDs token-by-token) shows the same pattern: up to <strong>+29% NDCG@5</strong> over SASRec on Amazon Beauty.</p>
+<p><strong>LLMs took over the ranking stage.</strong> LlamaRec's two-stage design — cheap retrieval, then a Llama 2 reranker with a verbalizer head — beats every other LLM-based recommender baseline by ~14% on average. And LLM-RS (July 2026) goes further, generating explicit reasoning chains that weigh each candidate against inferred preferences: SOTA-matching accuracy plus human-readable explanations, which lifted user trust and long-term engagement in their experiments.</p>
+<p>The through-line is clean: retrieval keeps getting cheaper and smarter (dual encoders, cluster-based hard negatives), ranking keeps getting more expressive (LLM rerankers with reasoning), and the funnel holds it all together.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>Every production recommender is a funnel</strong>: retrieval (&lt;10ms) → ranking (&lt;30ms) → rerank (&lt;10ms). Design for the latency budget first, model choice second.</li>
+<li><strong>Two towers + an ANN index is the retrieval standard.</strong> Precompute item embeddings offline; at serving time, run the user tower once and do a nearest-neighbor lookup.</li>
+<li><strong>Negatives matter more than architecture.</strong> Meta's July 2026 result: cluster-based hard negatives delivered +53% CTR in production. Audit your sampling before you upsize your model.</li>
+<li><strong>Correct for sampling bias.</strong> LogQ-style corrections are standard at Google, ByteDance, and Kuaishou for a reason — without them, popular items win by default and the feedback loop tightens.</li>
+<li><strong>Watch semantic tokens.</strong> Pure ID-based models can't do cold start. Feature- and semantic-ID encoders (RetrievalFormer, TTDS, TIGER) are the current frontier — and LLM reasoning on top is where ranking is headed.</li>
+</ol>
+<hr />
+<p><strong>References:</strong> <em>Real-Time Hard Negative Sampling via LLM-based Clustering for Large-Scale Two-Tower Retrieval</em> (Meta, arXiv 2607.00448, July 2026) · <em>RetrievalFormer</em> (ICLR 2026, under review) · <em>Unleash LLMs Potential for Recommendation by Coordinating Twin-Tower Dynamic Semantic Token Generator</em> (arXiv 2409.09253) · <em>LLM-RS: A Large Language Model-Based Sequential Recommendation with Reasoning</em> (MDPI, July 2026) · <em>TIGER: Recommender Systems with Generative Retrieval</em> (arXiv 2305.05065) · <em>LlamaRec</em> (arXiv 2311.02089).</p>
+<h2>Diagrams</h2>
+<h3>Diagram 1 — The three-stage funnel — retrieval, ranking, re-ranking with latency budgets</h3>
+<p><img alt="Diagram 1" src="assets/diagram-1-funnel.png" /></p>
+<h3>Diagram 2 — Two-tower retrieval — user tower plus item tower, served via an ANN index</h3>
+<p><img alt="Diagram 2" src="assets/diagram-2-two-tower.png" /></p>
+<h3>Diagram 3 — Hard negatives — cluster-based sampling (Meta, July 2026)</h3>
+<p><img alt="Diagram 3" src="assets/diagram-3-hard-negatives.png" /></p>
+<h3>Diagram 4 — Reported gains across 2026 retrieval research</h3>
+<p><img alt="Diagram 4" src="assets/diagram-4-reported-gains.png" /></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/two-tower-retrieval.ipynb">two-tower-retrieval.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1,107 Tokens Per Second: The LLM That Doesn't Type | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>1,107 Tokens Per Second: The LLM That Doesn't Type</h1>
+<div class="meta">2026-09-21 &middot; GenAI + ML architectures (diffusion LLMs)</div>
+<article class="post">
+<p>On September 8, 2026, Inception Labs announced <strong>Mercury 2.5</strong> — which the company describes as the largest diffusion language model ever trained. The headline number: <strong>1,107 tokens per second</strong> on widely available NVIDIA GPUs, at quality the company says matches the cost-optimized frontier tier (GPT-5.6 Luna Low, Gemini 3.5 Flash-Lite, Claude Haiku 4.5). It's a 40% intelligence jump over Mercury 2, and it's aimed at one thing the whole industry pretends doesn't exist: the speed ceiling built into how every mainstream LLM writes.</p>
+<h2>ELI5: the typewriter vs. the sketch artist</h2>
+<p>Every LLM you've ever used writes like a typewriter. It picks token 1, commits to it forever, then picks token 2, then token 3 — left to right, one at a time. If token 4 turns out to be wrong, too bad: token 7 is already written. This is <strong>autoregressive generation</strong>, and it has been the industry's only option in production since GPT-3. Its throughput is capped by a physical fact: token <em>n</em> can't exist until token <em>n−1</em> does.</p>
+<p>Mercury 2.5 writes like a sketch artist. It drafts the <em>entire</em> answer at once — every slot filled with a placeholder — then refines the whole thing in parallel passes, exactly the way Stable Diffusion turns noise into a picture. Nothing is ever locked in. A mistake in the first word can be fixed in the final pass, because every pass touches every position. This is <strong>diffusion generation</strong>, and it's the first time the architecture has gone from research curiosity to a general-availability production API.</p>
+<p><img alt="Diagram 1" src="assets/1_typewriter_vs_sketch.png" /></p>
+<h2>How it works: unmasking in four steps</h2>
+<ol>
+<li><strong>Fix the answer length first.</strong> Diffusion needs a fixed number of token slots up front — every slot starts as a <code>[MASK]</code>. (Choosing length ahead of time is the architecture's most awkward habit; variable-length decoding is still an open problem.)</li>
+<li><strong>Attend in both directions.</strong> Autoregressive models mask the future — each token only sees what's left of it. Diffusion uses <strong>bidirectional attention</strong>: every token slot sees everything on both sides, in every pass. This is why 2026 research shows diffusion beating autoregressive models on tasks with <em>global</em> constraints — "list exactly five items," "keep these two paragraphs consistent" — the model can check the whole draft at once.</li>
+<li><strong>Denoise, don't decode.</strong> Each pass predicts all masked slots simultaneously. The most confident predictions unmask; uncertain slots stay masked and get refined in the next pass. A typical run uses on the order of ~32 passes — but that's ~32 <em>parallel</em> operations over the full answer, not 32 sequential token commits.</li>
+<li><strong>Tune the reasoning dial.</strong> Mercury 2.5 exposes <strong>tunable reasoning</strong>: more denoising passes buy accuracy, fewer buy speed. It's the same quality/latency knob every frontier API has now, but the knob is honest here — it directly controls compute per output.</li>
+</ol>
+<p><img alt="Diagram 2" src="assets/3_unmasking_schedule.png" /></p>
+<h2>State of the art: the numbers, with the caveats printed</h2>
+<p><strong>Speed.</strong> Mercury 2.5's 1,107 tok/s is vendor-reported. Independent measurements of the autoregressive competition (Artificial Analysis, Requesty.ai): Gemini 3.8 Flash 277.5 tok/s, DeepSeek V4.1 Flash 89, Claude Fable 5.1 65.1, GPT-6 Astra (medium) 50.4. Two cautions, both from third-party writeups on the launch: nobody uses a standardized methodology in this category, and the diffusion numbers are lab-reported — treat them as a ceiling, not your average. Even discounted by half, though, diffusion sits in a different band.</p>
+<p><img alt="Diagram 3" src="assets/2_speed_showdown.png" /></p>
+<p><strong>It's not the only diffusion game in town.</strong> Google's <strong>DiffusionGemma</strong> reports 1,000+ tok/s on H100 and 700+ on a consumer RTX 5090 — also vendor figures — while Google's <strong>Gemini Diffusion</strong> remains experimental. The open diffusion models are free to self-host, which is why researchers treat this track seriously even when the flagship numbers come from marketing pages.</p>
+<p><strong>Quality.</strong> A 40% intelligence gain over Mercury 2, benchmarked across agentic tool use (Tau3Bench Telecom), scientific reasoning (GPQA Diamond, SciCode), instruction following (IFBench), long-context recall (AA-LCR), and terminal coding (TerminalBench). Inception positions it against Haiku 4.5 and Flash-Lite — the cheap-and-fast tier, not the flagship reasoning tier. That's the honest framing: this is not trying to out-think GPT-6 Astra. It's trying to out-serve it.</p>
+<p><strong>Price and plumbing.</strong> $0.20/M input tokens, $0.75/M output — with an 80% launch discount bringing those to <strong>$0.04 and $0.15</strong>. OpenAI-compatible API, so existing apps switch with minimal code changes. 260K-token context window — roughly a 500-page book in one prompt.</p>
+<p><strong>The context gap.</strong> The single biggest capability gap diffusion still has: no vendor has published a 1M-token context figure for a diffusion model, while 1M windows are now standard across GPT-6 Astra, Claude Fable 5.1, Gemini 3.8 Flash, and DeepSeek V4.1 Flash. Long-context is autoregressive home turf for now.</p>
+<p><strong>The ecosystem bet.</strong> Inception also announced <strong>Mercury Voice</strong> (sub-170ms time-to-first-token for voice agents — early adopter OpenCall reports median latencies under 200ms) and <strong>Mercury Router</strong>, a model router built on diffusion itself. The strategy is clear: own the workloads where latency compounds across dozens of model calls — voice agents, search and RAG pipelines, coding subagents. Watch the math:</p>
+<p><img alt="Diagram 4" src="assets/4_latency_compounds.png" /></p>
+<p>Fifty subagent calls generating 100 tokens each: ~4.5 seconds on Mercury 2.5 vs. ~99 seconds at GPT-6-Astra-class speed. When your agent makes the call dozens of times before answering once, throughput <em>is</em> the product.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Diffusion LLMs went production.</strong> Mercury 2.5 (Sept 2026) is the first dLLM shipping as a GA API: 1,107 tok/s claimed, Haiku-tier quality, OpenAI-compatible endpoints.</li>
+<li><strong>The mechanism is sketch-then-refine:</strong> all token slots start masked and get denoised in parallel passes with bidirectional attention — early errors can be fixed mid-generation, which autoregressive models physically can't do.</li>
+<li><strong>Read speed claims with the vendor discount applied.</strong> Diffusion numbers are lab-reported; autoregressive numbers above are independent. There is no standardized benchmark methodology in this category yet.</li>
+<li><strong>The gap that matters is context.</strong> Diffusion owns speed; autoregressive owns the 1M-token window. Until a diffusion model closes that, they serve different workloads.</li>
+<li><strong>The buying question is now real:</strong> if your workload makes 10–50 model calls per user answer — agents, voice, RAG — a diffusion model at $0.04/M input tokens is no longer an experiment. It's the cheap tier's fastest option.</li>
+</ul>
+<hr />
+<p><em>Companion notebook: <a href="assets/diffusion-llm.ipynb">diffusion-llm.ipynb</a> — simulate a masked-diffusion decoder step by step and watch parallel unmasking beat left-to-right generation.</em></p>
+<p><em>Sources: Inception Labs launch announcement (Sept 8, 2026); Artificial Analysis and Requesty.ai independent speed trackers; Google DiffusionGemma reported figures. Vendor figures are self-reported.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/diffusion-llm.ipynb">diffusion-llm.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

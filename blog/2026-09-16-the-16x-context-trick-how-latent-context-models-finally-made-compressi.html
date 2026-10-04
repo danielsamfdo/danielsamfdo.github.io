@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The 16x Context Trick: How Latent Context Models Finally Made Compression Work | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The 16x Context Trick: How Latent Context Models Finally Made Compression Work</h1>
+<div class="meta">2026-09-16 &middot; LLM inference (context compression)</div>
+<article class="post">
+<p>One-paste order for Medium's new-story editor: <strong>title → body → diagrams → notebook link → checklist</strong>.</p>
+<hr />
+<p>Your agent's context window is a ticking cost bomb. Every retrieved document, every reasoning trace, every turn of conversation adds tokens — and tokens cost memory quadratically, not linearly. This week, a team from NYU, Columbia, Princeton, UMD, Harvard, and Lawrence Livermore published a fix that actually survives production: Latent Context Language Models (LCLMs). They compress input 16x before the decoder ever sees it — and beat every existing method at every ratio tested.</p>
+<h2>ELI5: why context is the bottleneck</h2>
+<p>Think of a model's context window as desk space. Attention means every new token looks at every previous token — so doubling your context roughly quadruples the work and the memory. The standard trick, KV-cache compression, is like photocopying the entire desk first and <em>then</em> throwing pages away. You still pay the full upfront cost.</p>
+<p>LCLMs flip the order: compress <em>first</em>, decode <em>later</em>. At 1 million tokens, the uncompressed approach runs out of memory on a single H200 GPU. LCLM at 16x compression stays comfortably in bounds.</p>
+<h2>How it works</h2>
+<p>The architecture is an encoder-decoder split:</p>
+<ul>
+<li>A <strong>0.6B encoder</strong> reads blocks of input tokens and compresses each block into a short sequence of <strong>latent embeddings</strong> — learned "summary vectors" that stand in for the raw text.</li>
+<li>A <strong>4B decoder</strong> processes those latent embeddings <em>in place of</em> the original tokens. It never sees the full sequence.</li>
+</ul>
+<p>Training ran on <strong>350B+ tokens</strong> with a three-part recipe: continual pre-training with compressed and uncompressed spans interleaved, supervised fine-tuning on reasoning and long-context tasks, and an auxiliary <strong>reconstruction task</strong> that forces the encoder to keep fine-grained detail. That last ingredient is the one that matters: earlier compression work lost task performance whenever it optimized for faithful reconstruction. This recipe gets both.</p>
+<p>An architecture search confirmed the scaling rule: <strong>scale the decoder, not the encoder</strong>. A bigger encoder buys almost nothing.</p>
+<p>For RAG stacks, the integration story is simple — swap LCLMs in wherever you currently dump retrieved documents into context. Just run the documents through the compressor first. The paper also demos agents that selectively <em>decompress</em> useful passages — skim fast, zoom in on what's relevant.</p>
+<h2>State of the art: the numbers</h2>
+<p>On the RULER long-context benchmark:</p>
+<ul>
+<li><strong>4x compression: 91.76% accuracy vs 94.41% uncompressed.</strong> That's a 2.65-point drop for cutting context to one quarter. Nothing else in production gets close to this tradeoff.</li>
+<li><strong>16x compression: 75.06%</strong> — with 93.75% of input tokens removed. Every KV-cache method tested at the same ratio scored lower.</li>
+<li><strong>8.8x faster output</strong> than KV-cache baselines at 16x on RULER — because the savings hit decoder-side compute and memory, not just storage.</li>
+<li>On <strong>GSM8K</strong>, where the <em>entire prompt</em> is compressed rather than just retrieved documents, LCLMs outscored every other method at every compression ratio.</li>
+</ul>
+<p>Two facts make this a production story, not a benchmark story. First, the compression happens <em>before decoder prefill</em>, so the ratio translates directly into real speedups on standard serving infrastructure — unlike methods that still materialize the full KV cache before evicting entries. Second, the models are open: HuggingFace at <code>latent-context</code>, code on GitHub (LeonLixyz/LCLM).</p>
+<p>The honest gaps: <strong>reasoning-trace compression is unsolved.</strong> For agents with long chains of thought, context growth from the trace itself is a separate problem — the team says periodic trace compression "might work, but that remains to be determined." And teams plugging this into existing RAG pipelines will need to retune retrieval-quality metrics against compression behavior before shipping.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>Compress before prefill, not after.</strong> Decoder-side compression is the difference between a paper number and a production speedup.</li>
+<li><strong>4x compression now costs 2.65 accuracy points</strong> on long-context tasks. The quality/compression frontier moved this week.</li>
+<li><strong>Scale the decoder, not the compressor.</strong> Encoder size is near-irrelevant to final accuracy.</li>
+<li><strong>Reconstruction training is what makes it general.</strong> Faithfulness and task performance aren't a tradeoff if you train for both.</li>
+<li><strong>Unfinished: online reasoning-trace compression.</strong> Watch this space — it's the next wall for long-running agents.</li>
+</ol>
+<p>Paper: <em>End-to-End Context Compression at Scale</em> (arXiv 2606.09659). Models open-sourced on HuggingFace, code on GitHub.</p>
+<h2>Diagrams</h2>
+<h3>Diagram 1 — Why context is the bottleneck — attention cost and memory vs. context length</h3>
+<p><img alt="Diagram 1" src="assets/diagram-1-context-cost.png" /></p>
+<h3>Diagram 2 — LCLM architecture — encoder compresses blocks into latent embeddings, decoder reads those</h3>
+<p><img alt="Diagram 2" src="assets/diagram-2-lclm-architecture.png" /></p>
+<h3>Diagram 3 — RULER benchmark — accuracy at 4x and 16x compression vs. baselines</h3>
+<p><img alt="Diagram 3" src="assets/diagram-3-ruler-benchmark.png" /></p>
+<h3>Diagram 4 — Speed and memory — output speedup and memory savings at 16x</h3>
+<p><img alt="Diagram 4" src="assets/diagram-4-speed-memory.png" /></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/lclm-context-compression.ipynb">lclm-context-compression.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

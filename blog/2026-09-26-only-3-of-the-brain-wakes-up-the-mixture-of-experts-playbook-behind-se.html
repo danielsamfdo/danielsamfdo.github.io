@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Only 3% of the Brain Wakes Up: The Mixture-of-Experts Playbook Behind September's Biggest Models | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Only 3% of the Brain Wakes Up: The Mixture-of-Experts Playbook Behind September's Biggest Models</h1>
+<div class="meta">2026-09-26 &middot; ML architectures (mixture-of-experts)</div>
+<article class="post">
+<p>Two open-weight releases, twelve days apart. <strong>DeepSeek V4.1 Flash</strong> (September 10): 552 billion parameters — and about 8 billion of them fire on each input token, 16 billion on output. <strong>Xiaomi MiMo-V2.6 Pro</strong> (September 22): 1.02 <em>trillion</em> parameters, with just 42 billion active per token. Both MIT-licensed. Both cheaper per token than models a tenth their size.</p>
+<p>The trick isn't new. It's a 2017 idea (Shazeer et al.'s sparsely-gated MoE, 137B parameters) that quietly conquered the frontier: of the seven frontier open-weight models people actually deploy in 2026, six are Mixture-of-Experts. This is the architecture eating the scaling curve — so here's how it works, where it breaks, and what September's research says about fixing it.</p>
+<h2>ELI5: the hospital with specialists on call</h2>
+<p>A dense transformer is a hospital where <strong>every doctor examines every patient</strong>. Chest pain? All 200 doctors walk in. Splinter? All 200 doctors walk in. You pay for all of them, every time.</p>
+<p>A Mixture-of-Experts model is a hospital with a <strong>triage nurse</strong>. Each patient (token) gets routed to only the 2–8 specialists relevant to their case. The hospital still <em>employs</em> 200 specialists — that's the model's knowledge capacity — but each patient only pays for a handful. Total parameters are the staff directory. Active parameters are the bill.</p>
+<p>That's the whole bargain: <strong>a huge brain, a small compute bill.</strong> DeepSeek-V3 carries 671B parameters but computes like a 37B model — an 18× gap between what it <em>knows</em> and what it <em>spends</em>. The September releases pushed it further: V4.1 Flash runs 552B of knowledge on ~16B of compute per output token, a 34× gap. Only ~3% of the brain wakes up.</p>
+<p><img alt="Diagram 1" src="assets/1_router_topk.png" /></p>
+<h2>How it works: a router, k experts, and a weighted vote</h2>
+<p>In a standard transformer block, the feed-forward network (FFN) holds most of the parameters and most of the compute. MoE replaces that single FFN with <strong>N smaller expert networks plus a router</strong> (the gating network):</p>
+<ol>
+<li><strong>Score.</strong> The router reads the token and scores every expert: <code>scores = softmax(x · W_router)</code>.</li>
+<li><strong>Select.</strong> Keep only the <strong>top-k</strong> (typically 2–8). The rest sit idle for this token.</li>
+<li><strong>Combine.</strong> Each selected expert processes the token; outputs merge as a <strong>weighted sum</strong> using the router's scores: <code>y = Σ gᵢ · Expertᵢ(x)</code>.</li>
+</ol>
+<p>Modern variants add a <strong>shared expert</strong> that every token also passes through (DeepSeek's design: 256 routed experts + 1 shared), which soaks up common knowledge so routed experts can specialize.</p>
+<p>Training has one notorious failure mode: <strong>router collapse</strong>. Left alone, the router discovers 3 favorite experts and starves the rest — 61 experts never learn anything. The standard fix is an <strong>auxiliary load-balancing loss</strong> (from Switch Transformer): penalize the router when traffic concentrates, <code>L_aux = α · N · Σ fᵢ · Pᵢ</code>, where <code>fᵢ</code> is the fraction of tokens sent to expert <em>i</em> and <code>Pᵢ</code> the average router probability. It's a tax on favoritism.</p>
+<p>And the catch the marketing skips: <strong>the savings are compute, not memory.</strong> Every expert must sit in VRAM whether or not a given token uses it. DeepSeek-V3's 671B parameters in FP8 need ~671 GB of weights — a multi-GPU server — even though each token computes like a 37B model. MoE buys you a bigger brain for the same FLOP bill, then hands you the memory bill.</p>
+<p><img alt="Diagram 2" src="assets/2_total_vs_active.png" /></p>
+<h2>The numbers (SOTA section)</h2>
+<p><strong>September's leaderboard.</strong> The frontier is now an MoE monoculture, and the licenses are getting friendlier:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Released</th>
+<th>Total / active</th>
+<th>Experts (top-k)</th>
+<th>License</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MiMo-V2.6 Pro</td>
+<td>Sep 22, 2026</td>
+<td>1.02T / 42B</td>
+<td>384 (8)</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td>DeepSeek V4.1 Flash</td>
+<td>Sep 10, 2026</td>
+<td>552B / 8B in, 16B out</td>
+<td>—</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td>GLM-5.3-Flash</td>
+<td>Aug 26, 2026</td>
+<td>320B / 18B</td>
+<td>—</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td>Qwen3-235B-A22B</td>
+<td>2025</td>
+<td>235B / 22B</td>
+<td>128 (8)</td>
+<td>open</td>
+</tr>
+<tr>
+<td>DeepSeek-V3</td>
+<td>Dec 2024</td>
+<td>671B / 37B</td>
+<td>256+1 shared (8)</td>
+<td>open</td>
+</tr>
+<tr>
+<td>Instella-MoE-16B-A3B</td>
+<td>Jul 2026</td>
+<td>16B / 2.8B</td>
+<td>64 routed (6) + 2 shared</td>
+<td>fully open*</td>
+</tr>
+</tbody>
+</table>
+<p>*AMD's Instella is the "fully open" outlier: trained end-to-end on MI300X/MI325X GPUs with open Primus/Miles frameworks — 12.7% faster training and 39.2% lower time-to-first-token from its Gated MLA + FarSkip-Collective design. (Weights carry a ResearchRAIL non-commercial limit; the training code is MIT.)</p>
+<p>Pricing tells the story: V4.1 Flash at <strong>$0.15/$0.60 per million tokens</strong> off-peak and MiMo-V2.6 Pro at <strong>$0.435/$0.87</strong> — frontier-adjacent intelligence at dense-model prices, because the provider's compute cost is set by the <em>active</em> count.</p>
+<p><strong>The research front</strong> is attacking MoE's three chronic diseases:</p>
+<ul>
+<li><strong>Do deep layers even need their own experts?</strong> <strong>UniPool</strong> (arXiv:2605.06665, May 2026) found that replacing a deep layer's learned top-k router with <em>uniform random routing</em> drops accuracy only 1.0–1.6 points — deep routers are mostly redundant. Its fix: one <strong>globally shared expert pool</strong> across all layers instead of per-layer expert sets. Result: <strong>41.6–66.7% of the expert-parameter budget matches or beats vanilla MoE</strong>, and validation loss improves by up to 0.0386. Expert capacity stops scaling linearly with depth.</li>
+<li><strong>Load imbalance is fixable.</strong> <strong>Latent Prototype Routing</strong> reframes routing as clustering and cuts the Gini coefficient of expert load from <strong>0.70 to 0.035</strong> across DeepSeek-V3, Qwen3-MoE, and Mixtral — a 20× more balanced system with no quality loss.</li>
+<li><strong>The "Standing Committee."</strong> A 2026 audit (COMMITTEEAUDIT, arXiv:2601.03425) found ~6 of 64 experts appear in the top-k for the <strong>overwhelming majority of tokens regardless of domain</strong> — code, poetry, math — carrying 60–67% of total routing weight. Specialization is real, but a small generalist committee does most of the work.</li>
+</ul>
+<p><img alt="Diagram 3" src="assets/3_load_balance.png" /></p>
+<p><strong>The serving tax.</strong> Because no single GPU holds all experts, MoE serving shards them across GPUs — <strong>expert parallelism</strong> — and each token <em>travels</em> to the GPUs holding its experts, then the weighted outputs travel back. That all-to-all shuffle is pure overhead: bandwidth and stragglers cap throughput. Worse, it creates a verification blind spot: a June 2026 analysis ("The Expert Shuffle") showed a decentralized provider can silently cut top-k from 8 to 4 ("k-shunting") and stay nearly undetectable — because the Standing Committee dominates both runs, outputs overlap. Sampling-based checks can't catch it; only measurement of intermediate computation can.</p>
+<p><img alt="Diagram 4" src="assets/4_serving_alltoall.png" /></p>
+<h2>The limits, stated plainly</h2>
+<ol>
+<li><strong>Memory doesn't sparsify.</strong> You pay VRAM for every parameter and FLOPs for the active few. "Open weights" at 552B–1T params means a multi-GPU server (V4.1 Flash's checkpoint is ~510 GB).</li>
+<li><strong>Routing is the fragile part.</strong> Collapse, imbalance, and the standing-committee effect mean much of the expert count is decorative. UniPool's random-routing result is humbling: deep routers barely matter.</li>
+<li><strong>Serving is a distributed-systems problem.</strong> All-to-all dispatch/combine, capacity scheduling, stragglers — MoE inference engineering looks more like HPC than like running a dense model.</li>
+<li><strong>Verification has a hole.</strong> k-shunting in decentralized serving is currently hard to detect from outputs alone. If you're buying MoE inference from a third party, ask what they measure.</li>
+</ol>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>MoE decouples knowledge from compute.</strong> Total params = capacity (memory bill); active params = cost per token (compute bill). September's releases push the gap to 24–34×.</li>
+<li><strong>The router is the whole game.</strong> Top-k softmax gating + weighted sum is simple; keeping all experts alive via load-balancing losses is the hard part — and 2026 research (LPR, UniPool) is winning.</li>
+<li><strong>Deep experts are redundant.</strong> UniPool showed random routing in deep layers costs ~1 point — the future is shared expert pools, not per-layer expert farms.</li>
+<li><strong>The frontier is an MoE monoculture with MIT licenses.</strong> 6 of 7 deployed frontier open-weight models are MoE, and the September flagships ship MIT weights. The moat moved from weights to serving.</li>
+<li><strong>Watch the serving layer, not the parameter count.</strong> All-to-all communication and k-shunting mean the interesting MoE problems in 2026 are systems and verification, not scale.</li>
+</ol>
+<hr />
+<p><strong>Companion notebook:</strong> <code>moe_mixture_of_experts.ipynb</code> — build a tiny MoE layer from scratch in NumPy (router, top-2 gating, load-balancing aux loss), train it on a toy task, and watch router collapse happen <em>without</em> the aux loss and disappear <em>with</em> it.</p>
+<p><strong>Sources:</strong> <a href="https://www.datacamp.com/blog/best-llm-for-coding">DeepSeek V4.1 Flash release details</a> · <a href="https://aicybr.com/blog/xiaomi-mimo-v2-6-pro-open-weight-model">MiMo-V2.6 Pro release</a> · <a href="https://github.com/best-of-ai/best-of-ai/blob/HEAD/content/models/glm-5-3-flash.md">GLM-5.3-Flash model card</a> · <a href="https://github.com/blokzdev/blokz/blob/HEAD/content/articles/2026/06/the-expert-shuffle/index.mdx">The Expert Shuffle: MoE serving's verification problem</a> · <a href="https://github.com/blokzdev/blokz/blob/HEAD/content/articles/2026/06/the-expert-gap-mixture-of-experts-routing-and-the-verification-blind-spot-in-decentralized-ai/index.mdx">The Expert Gap: routing and the verification blind spot</a> · <a href="https://temperature2.com/p/2026-09-18-learning-what-is-mixture-of-experts/">What is Mixture of Experts? (Sep 2026)</a> · <a href="https://github.com/yhn-liu/llm-research-wiki/blob/HEAD/entities/papers/2605-06665v1-unipool-a-globally-shared-expert-pool-for-mixture.md">UniPool paper wiki</a> · <a href="https://pdfs.assets.alphaxiv.org/2506.21328v1.pdf">Latent Prototype Routing (LPR)</a> · <a href="https://export.arxiv.org/pdf/2508.16700">GPT-OSS-20B deployment analysis</a> · <a href="https://rocm.blogs.amd.com/artificial-intelligence/instella-moe/README.html">AMD Instella-MoE</a></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/moe_mixture_of_experts.ipynb">moe_mixture_of_experts.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

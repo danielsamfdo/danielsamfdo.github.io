@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Same Model, Three Agents: Why the Harness — Not the Model — Decides What Your AI Can Do | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Same Model, Three Agents: Why the Harness — Not the Model — Decides What Your AI Can Do</h1>
+<div class="meta">2026-09-18 &middot; Agents (agent harnesses)</div>
+<article class="post">
+<p>One-paste order for Medium's new-story editor: <strong>title → body → diagrams → notebook link → checklist</strong>.</p>
+<hr />
+<p>Swap the model in your AI agent and you expect it to get smarter. Swap the <em>harness</em> — the loop, the context manager, the tool interface, the recovery logic — and the same weights score 28% on one benchmark and 49% on the next. In 2026, the industry finally stopped pretending the model is the agent. The evidence says the wrapper is the variable.</p>
+<h2>ELI5: the chef and the kitchen</h2>
+<p>Think of the language model as a brilliant chef. The harness is the entire kitchen around them: the recipe binder (context), the pantry and tools (tool interface), the workspace counters (state), the fire alarm and extinguishers (guardrails), the timer that says "stop plating and serve" (stopping rules), and the health inspector writing down everything that happened (tracing/audit).</p>
+<p>Put that chef in a well-organized commercial kitchen and you get dinner service. Put the same chef in a dark room with a butter knife and you get nothing — not because the chef changed, but because everything the chef needed to <em>act</em> was missing. A harness is that kitchen: the system layer that decides what the model sees, which tools it can touch, how work continues after a failure, and when to stop. The model is the easy part. The kitchen is the hard part.</p>
+<h2>How it works: the seven layers of a harness</h2>
+<p>Every production agent is a loop. The model proposes, the harness executes. Concretely, a harness has seven jobs:</p>
+<ol>
+<li><strong>The agent loop.</strong> Call the model → parse its action → run the tool → feed the result back → repeat. Trivial to write, treacherous to keep alive: a loop that runs for 3 days must survive process restarts.</li>
+<li><strong>Context management.</strong> The context window is finite and expensive. The harness builds prompts, compresses or compacts old conversation, and shortens stale tool outputs as the window fills. Context resets that rescued a weak model become pure overhead on a strong one — so the strategy must fit the model.</li>
+<li><strong>Tool interface.</strong> How tools are declared, how arguments are validated, how results are returned and truncated. One bad tool schema can burn thousands of tokens in retry loops.</li>
+<li><strong>Workspace state.</strong> The files, databases, and scratch space the agent modifies. The harness versions it, isolates it (sandboxing), and makes it recoverable.</li>
+<li><strong>Guardrails.</strong> Permissions, approval gates on irreversible actions, iteration caps. This is the accountability layer: no gain in reasoning power turns a model's confidence into permission to touch the ledger.</li>
+<li><strong>Recovery.</strong> What happens when a tool hangs, an API returns garbage, or the run dies at hour 6 of 8. Retries with backoff, fallback paths, durable sessions that resume where they stopped.</li>
+<li><strong>Audit and tracing.</strong> Every action recorded, every artifact validated against an output contract. Without this, you can't debug the agent — and you can't trust it.</li>
+</ol>
+<p>Miss any one of these and the model can't help you. That's the mechanical reason 40% of agentic AI initiatives are projected to be discontinued by the end of 2027 (Gartner, via September 2026 industry coverage): not because the models were weak, but because the harness wasn't built.</p>
+<h2>State of the art</h2>
+<p><strong>Harness-Bench put numbers on it (May 2026, arXiv 2605.27922).</strong> Researchers at Peking University and Qiyuan Tech built a diagnostic benchmark: 106 sandboxed, manually-reviewed tasks drawn from real agent-use patterns, 5,194 execution trajectories, same tasks and budgets across model-harness pairings. Result: substantial variation in completion, efficiency, and failure behavior — driven by the harness, not the weights. Their conclusion is the quote of the year: <em>agent capability should be reported at the model-harness configuration level, not attributed to the base model alone.</em> A companion analysis cited a 23.8-point gap between the best and worst configurable harnesses on shared tasks.</p>
+<p><strong>The ablations are brutal.</strong> Hold the model fixed, change only the wrapper, and scores swing wildly: GPT-4 Turbo solved 18.0% of 300 SWE-bench Lite tasks with a purpose-built codebase interface but only 11.0% driving a plain shell. A minimal versus full adapter on the same GLM 5.1 backbone scored 19.1% versus 73.4% on Claw-SWE-Bench. And in <em>"Same Model, Different Harness"</em> (arXiv 2608.26218, August 2026), a purely mechanical change — shortening older tool results as context filled, plus stalling detection — raised mean fail-to-pass fraction from 28% to 49% and complete solutions from 43 to 72 on a 169-task SWE-bench Verified cohort. No weights changed. The wrapper moved the score. (The honest counter-evidence: with a strong long-context model and a fully observable environment, simple scaffolding reached 50.8% on SWE-bench Verified — scaffolding that compensates for weak reasoning shrinks as models improve. Controls that carry accountability don't.)</p>
+<p><strong>Harnesses started editing themselves.</strong> <em>Self-Harness</em> (arXiv, reported September 2026) lets an agent rewrite its own runtime rules. Starting from a minimal harness on the DeepAgent SDK, it ran Terminal-Bench-2.0 tasks, detected recurring failure patterns, and wrote targeted patches — e.g., one model kept exploring dataset configurations until timeout, so the system wrote a "loop breaker" forcing it to stop after 50 tool calls and draft deliverables early. Held-out relative improvements: <strong>33–60% across MiniMax M2.5, Qwen3.5-35B-A3B, and GLM-5</strong> — model, tools, and benchmark held fixed; only the harness varied. The key design detail: an acceptance rule promotes only edits that improve failures without regressing other tasks.</p>
+<p><strong>The harness became the product.</strong> On September 10, 2026, OpenAI launched the <strong>Agents API</strong> in public beta: the managed Codex harness — session orchestration, automatic context compaction, recovery, durable sessions that run for days, sandboxes (OpenAI-managed, self-hosted, or via partners including Cloudflare, Modal, and Vercel), subagent parallelization (Ciridae's CTO reported 4× latency cuts), MCP and custom tool connections. One API call spins up a production-ready agent; you pay tokens and sandbox minutes, no harness fee. The strategic read, laid out when OpenAI open-sourced the Codex harness under Apache 2.0 in August 2026: give away the specification, sell the operated version. Gartner forecasts 40% of enterprise applications will include task-specific AI agents by the end of 2026, up from under 5% in 2025 — and the vendors are now competing on who runs the best kitchen, not who trains the best chef.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>The harness is a variable, not a detail.</strong> Budget for it like a model: the loop, context strategy, tool interface, workspace, guardrails, recovery, and audit are where agent projects live or die.</li>
+<li><strong>Report model-harness pairs, not models.</strong> A benchmark score without the harness named is a chef rating without mentioning the kitchen.</li>
+<li><strong>Context management is the highest-leverage layer.</strong> Compaction, stale-output shortening, and stall detection moved scores more than any other single change in 2026's studies.</li>
+<li><strong>Separate compensation from accountability.</strong> Scaffolding that props up weak reasoning shrinks as models improve. Guardrails, permissions, and audit never do — no model gain turns confidence into authority to act.</li>
+<li><strong>Buy or borrow before you build.</strong> With managed harnesses (Agents API) and open-sourced production harnesses (Codex, Apache 2.0), custom orchestration is now the risky option, not the safe one — and your evaluation burden (task-level evals, evidence artifacts) stays yours either way.</li>
+</ol>
+<hr />
+<p><strong>References:</strong> <em>Harness-Bench: Measuring Harness Effects across Models in Realistic Agent Workflows</em> (arXiv 2605.27922, May 2026, Peking University / Qiyuan Tech) · <em>Same Model, Different Harness: Different Coding-Agent Results</em> (arXiv 2608.26218, Aug 2026) · <em>Self-Harness</em> (arXiv, reported via VentureBeat, Sep 2026) · OpenAI Agents API public beta (announced Sep 10, 2026; Codex harness open-sourced Apache 2.0, Aug 2026) · Towards AI Fryday #8: <em>10 Agent Harnesses That Change What the Same Model Can Do</em> (Sep 2026) · Oracle Developers: <em>Building an agent harness that survives production</em> (2026) · Gartner enterprise-agent forecasts via Sep 2026 coverage.</p>
+<h2>Diagrams</h2>
+<h3>Diagram 1 — Anatomy of a harness — the seven layers</h3>
+<p><img alt="Diagram 1" src="assets/diagram-1-anatomy.png" /></p>
+<h3>Diagram 2 — Same model, different harness — score swings from the wrapper alone</h3>
+<p><img alt="Diagram 2" src="assets/diagram-2-same-model.png" /></p>
+<h3>Diagram 3 — Self-editing harness — runtime rules rewritten from failure patterns</h3>
+<p><img alt="Diagram 3" src="assets/diagram-3-self-harness.png" /></p>
+<h3>Diagram 4 — The harness as product — managed runtimes and the Agents API</h3>
+<p><img alt="Diagram 4" src="assets/diagram-4-harness-as-product.png" /></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/agentic-harness.ipynb">agentic-harness.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Model That Doesn't Talk | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Model That Doesn't Talk</h1>
+<div class="meta">2026-09-24 &middot; Tech news / ML architectures (TypeSafe Jev — decision-output transformer)</div>
+<article class="post">
+<p>ChatGPT broke Diogo Almeida's heart.</p>
+<p>Almeida was an OpenAI researcher who helped build ChatGPT and co-invent RLHF — the training technique arguably most responsible for the current age of AI. But he walked away disappointed: <em>"We have lightning in a bottle, and yet it is not useful… The problem is we are optimizing for human language… We have been super good at human language for four years, but it's not useful for automation because computers speak a different language."</em></p>
+<p>Two years ago he left OpenAI and founded TypeSafe AI with Erik Gafni and Sasha Sheng ($40M raised). This month, the company came out of stealth with <strong>Jev</strong> — a transformer-based model that is not an LLM. It never generates a single token. It outputs probabilities. TypeSafe calls them "calibrated decisions."</p>
+<h2>ELI5: the forms clerk</h2>
+<p>Imagine a brilliant doctor who answers every yes/no question with a ten-page essay. You then have to read the essay, find the answer, and copy it into your spreadsheet. That doctor is ChatGPT.</p>
+<p>Now imagine a triage nurse who stamps your form: <strong>"urgent: 92%."</strong> That stamp is Jev.</p>
+<p>Software doesn't want sentences. It wants values it can branch on: <code>if risk &gt; 0.9: deny()</code>. Every time you use an LLM as a classifier, it generates dozens of tokens and you parse them <em>back</em> into a decision with a regex — slow, expensive, and occasionally the model hallucinates the format itself.</p>
+<p>Jev deletes language from the loop. You define the outputs in advance — a choice among up to 255 fixed options, a score on a scale, or a probability between 0 and 1 — and the model returns the typed value directly. No tokens generated, no tokens billed, no parsing, no malformed output. Ever.</p>
+<p><img alt="Diagram 1" src="assets/1_speak_vs_decide.png" /></p>
+<h2>How it works: one pass, no talking</h2>
+<p>An LLM is autoregressive: token → full model pass → token → full model pass. A 50-token answer is 50 sequential passes through the weights. That's why it's slow and why output tokens cost ~5× input tokens.</p>
+<p>Jev evaluates all candidate decisions in <strong>one parallel pass</strong> — structurally, it's closer to a giant classifier head on a transformer backbone than to a chatbot. TypeSafe is tight-lipped about the architecture (outside observers suspect an open-weight LLM base with the language-model head replaced by a decision head). It accepts text or structured program state up to ~32K tokens of context.</p>
+<p>The numbers, from TypeSafe's recorded demo and launch materials:</p>
+<ul>
+<li><strong>Latency:</strong> 70–500ms end-to-end. The demo: 0.114s vs 8.566s for GPT-5.6 Terra on the same workflow.</li>
+<li><strong>Price:</strong> $0.042 per million input tokens ($42 per billion). Output tokens are free — there are none to bill. That is mechanical, not marketing: no autoregressive decoding means no tokens to count.</li>
+<li><strong>Claimed edge:</strong> up to 193.6× faster, 444.6× cheaper than LLM alternatives.</li>
+</ul>
+<p>Fine print, because vendor numbers are vendor numbers: the reference answers are the <em>average</em> of GPT-6 Astra and Claude Fable 5.1, TypeSafe's own team wrote the workflows, the company says these gains sit at the <em>high end</em> of real-world results — and it admits it cannot prove the $42/B price is unsubsidized.</p>
+<p><img alt="Diagram 2" src="assets/2_reliability_diagram.png" /></p>
+<h2>The real trick: it knows when it doesn't know</h2>
+<p>"Zero hallucinations" is the headline, but read it carefully. What Jev cannot do is return a value <em>outside its schema</em> — structural hallucination is mathematically impossible. It can absolutely be <strong>wrong with 95% confidence</strong>. Almeida said it himself on Hacker News: <em>"It is possible to be wrong with high confidence — and all future models will be smarter and still have this possibility."</em></p>
+<p>The actual product is <strong>calibration</strong>. A calibrated model that says 70% is right about 70% of the time. LLM confidence is notoriously miscalibrated — a model saying "I'm 95% sure" might be right 60% of the time. That gap is what kills automation: you can't set a threshold on a number that lies.</p>
+<p>Jev is trained <strong>exclusively on synthetic data</strong> with a technique Almeida calls <strong>Reinforcement Learning for Calibrated Decisions (RLCD)</strong> — "a better bet than RLHF," in his words. The lineage matters:</p>
+<ul>
+<li><strong>RLHF</strong> (his own invention): optimize for <em>human preference</em> → great chat, fuzzy truth</li>
+<li><strong>RLVR</strong>: optimize for <em>verifiable correctness</em> → right answers, unknown confidence</li>
+<li><strong>RLCD</strong>: optimize for <em>calibration</em> → the confidence number itself is the product</li>
+</ul>
+<p>Calibration is scored with proper scoring rules — log loss and the Brier score punish confident wrongness, so a model trained to minimize them is honest about uncertainty by construction. The notebook below lets you measure this yourself.</p>
+<p><img alt="Diagram 3" src="assets/3_latency_cost.png" /></p>
+<h2>Where it sits in the stack: the decision layer</h2>
+<p>Real deployments are already live, days after launch — demand briefly took TypeSafe's API down:</p>
+<ul>
+<li><strong>Vercel</strong> (Pranit Sharma): replaced ChatGPT Luna 5.6 running a command-safety classifier with Jev — <strong>5–18× faster and more accurate</strong>.</li>
+<li><strong>Bryo AI</strong> (Nikhil Mudholkar): Jev vs Gemini on business-email triage — Gemini slightly more accurate, <strong>10–20× more expensive</strong>. And: <em>"it is the only one that hands back a real probability, which makes it ideal for automating workflows."</em></li>
+<li><strong>LangChain</strong> is evaluating it for <strong>model routing</strong> — predicting whether a workload needs the cheap model or the frontier one, a job too expensive to give an LLM.</li>
+<li><strong>Agent guardrails:</strong> rating each tool call as deny / ask / allow; monitoring agent traces for jailbreaks in real time.</li>
+</ul>
+<p>The division of labor developers are converging on:</p>
+<ul>
+<li><strong>Code</strong> → exact rules, zero ambiguity</li>
+<li><strong>Jev (the decision layer)</strong> → judgment calls among <em>defined</em> options</li>
+<li><strong>LLMs</strong> → open-ended reasoning and text generation</li>
+</ul>
+<p>The name is a tell: Jev, after William Stanley Jevons, of the <strong>Jevons paradox</strong> — when a commodity gets radically cheaper, you use <em>more</em> of it. Drop per-decision intelligence 400× in price and software gets smart everywhere, not just inside the chatbot.</p>
+<p><img alt="Diagram 4" src="assets/4_decision_layer_stack.png" /></p>
+<h2>The limits, stated plainly</h2>
+<ul>
+<li><strong>Fixed output space.</strong> No essays, no code, no reasoning traces you can read. The free-form work that makes general models broadly useful is out of reach.</li>
+<li><strong>Wrong with confidence is still wrong.</strong> The burden shifts to you: 50% is a coin toss you ignore, 95% is a bet you take. Thresholds should scale with the cost of being wrong.</li>
+<li><strong>~32K context</strong> — an order of magnitude below frontier 1M-token windows. It can't hold your whole codebase.</li>
+<li><strong>Vendor-produced claims</strong>, unsubsidized pricing unproven.</li>
+</ul>
+<h2>Takeaways</h2>
+<ol>
+<li>Language is overhead when the consumer is code. Jev deletes the token stream entirely.</li>
+<li>No autoregressive decoding → 70–500ms responses, and output tokens that cost $0 by construction.</li>
+<li>"No hallucinations" means no <em>structural</em> hallucinations. Calibration — confidence numbers that tell the truth — is the real product.</li>
+<li>RLCD adds a third training objective to the RL lineage: RLHF for preference, RLVR for correctness, RLCD for calibration.</li>
+<li>The pattern to copy: put a decision layer between your rules and your reasoner. Let code be exact, let the model judge, let the LLM think.</li>
+</ol>
+<p><em>Sources: TechCrunch (Sept 18, 2026), testingcatalog, MarkTechPost, dev.to analysis, TS2.tech. TypeSafe AI founded 2024 by Diogo Almeida, Erik Gafni, Sasha Sheng; $40M raised.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/jev-calibration.ipynb">jev-calibration.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

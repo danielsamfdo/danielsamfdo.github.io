@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One Update, One Quarter-Turn: The Attention Layer That Learned to Rotate | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>One Update, One Quarter-Turn: The Attention Layer That Learned to Rotate</h1>
+<div class="meta">2026-09-22 &middot; ML architectures (linear attention / Kimi Delta Attention)</div>
+<article class="post">
+<p>In October 2025, Moonshot AI made a startling claim: its <strong>Kimi Linear</strong> architecture — built on a new module called Kimi Delta Attention (KDA) — was the first linear attention to <strong>beat full attention under an identical training recipe</strong>. Not match it. Beat it: 84.3 vs 81.3 on MMLU-Pro, 51.0 vs 47.2 on RULER at 128k, with up to <strong>75% less KV cache</strong> and <strong>6× decoding throughput at a 1M-token context</strong> (3B activated / 48B total parameters, a hybrid of KDA and MLA layers).</p>
+<p>That raised an obvious question: <em>what exactly does KDA's memory update do that older linear RNNs can't?</em> On September 22, 2026, a team from Freiburg, Microsoft Research, Tübingen, and EPFL posted the answer — <strong>Complex KDA</strong> (arXiv 2609.24797). The answer fits in one sentence: <em>let the gate go negative, and a single memory update becomes a rotation.</em> And rotations are how machines count.</p>
+<h2>ELI5: the whiteboard, the mirror, and the clock</h2>
+<p><strong>The whiteboard.</strong> Full attention re-reads the entire conversation for every new token — a bill that grows quadratically with context length. Linear attention keeps a fixed-size "whiteboard" matrix <strong>S</strong> instead: each new token erases a little, writes a little, and the memory cost stays flat forever. No KV cache. That's the whole economic argument for the architecture.</p>
+<p><img alt="Diagram 1" src="assets/1_scaling_cost.png" /></p>
+<p><strong>The mirror.</strong> The update rule is:</p>
+<p><strong>S′ = ( I − βkkᵀ ) · Diag(α) · S  +  β k vᵀ</strong></p>
+<p>Three moves, left to right: decay the old board by per-channel factors α, erase along direction k (the "delta rule"), write the new note kvᵀ. The parameter β is a dial with a beautiful property: β=0 is the identity, β=1 is a projection, and <strong>β=2 is a Householder mirror</strong> — a reflection. So at β=2, the delta rule <em>reflects</em> memory instead of erasing it.</p>
+<p><img alt="Diagram 2" src="assets/2_whiteboard_update.png" /></p>
+<p><strong>The clock.</strong> Here's the trick the paper proves. Gated DeltaNet uses one scalar gate α for all channels. A scalar commutes with everything, so its transition is symmetric — and symmetric matrices have only real eigenvalues. No complex eigenvalues means <strong>no rotations, ever</strong>. KDA's gate is <em>per-channel</em>, which breaks that symmetry — but with the standard nonnegative gate, the spectrum still stays real. Now allow <strong>signed gates, α ∈ [−1, 1]</strong>, with <strong>β ∈ [0, 2]</strong>. A gate entry of −1 is a second mirror — a coordinate reflection. And mirror × mirror = rotation. With k=(1,1)/√2, a single update rotates memory by exactly 90°; steer k and you get any angle. One update = one quarter-turn of the whiteboard.</p>
+<p><img alt="Diagram 3" src="assets/3_two_mirrors_rotation.png" /></p>
+<p>Why does rotation matter? Because a rotation <em>is</em> a counter. Twelve quarter-turns of a clock face and you're back where you started: that's modular addition, the seed of all state tracking. Reflections can only do parity (even/odd). Rotations can count.</p>
+<h2>How it works: the spectrum argument</h2>
+<p>The paper's core result is spectral. For the transition A = (I − βkkᵀ)Diag(α):</p>
+<ul>
+<li><strong>Scalar gate (Gated DeltaNet):</strong> A = α(I − βkkᵀ) is symmetric → real spectrum always. Extending α to [−1, 1] only flips the global sign. No rotation possible — the scalar gate factors out of the whole product over time.</li>
+<li><strong>Nonnegative per-channel gate (KDA):</strong> breaks the symmetry, but the eigenvalues stay real. More expressive (finer-grained forgetting), still no rotation.</li>
+<li><strong>Signed per-channel gate + β ∈ [0, 2] (Complex KDA):</strong> the spectrum goes complex. At β=2 with gate (−1, 1), the eigenvalues are exactly <strong>±i</strong> — a pure 90° rotation. The paper proves the full characterization: <strong>every orthogonal diagonal-plus-rank-one matrix is exactly a CKDA transition.</strong> The model class is characterized completely, not approximately.</li>
+</ul>
+<h2>State of the art: what the rotation buys</h2>
+<p><strong>Expressivity, measured in group theory.</strong> State tracking is benchmarked by which groups one layer can track: parity needs 1D reflections, modular addition needs 2D rotations, permutation composition needs higher-dimensional orthogonal representations. Complex KDA's results (all proven, not just empirical):</p>
+<ul>
+<li><strong>One CKDA layer tracks every finite subgroup of SO(3)</strong> — including S₃, S₄, and A₅. Most state-tracking benchmarks need one layer <em>fewer</em> than with Gated DeltaNet.</li>
+<li><strong>Three layers solve arbitrary finite-group word problems</strong>, and with β &gt; 2 the model simulates weighted finite automata in polynomial precision — matching DeltaProduct₂, which needs <strong>two</strong> delta-rule updates per token to get its rotations. Complex KDA gets them in one.</li>
+<li>There's a ceiling, and the paper states it honestly: one-layer S₅ tracking is ruled out for CKDA and DeltaProductₖ (k ≤ 3) under non-expansive transitions and finite reachability.</li>
+</ul>
+<p><img alt="Diagram 4" src="assets/4_expressivity_ladder.png" /></p>
+<p><strong>Language modeling, not just toy tasks.</strong> At 1.3B parameters and 100B tokens, Complex KDA performs on par with the KDA baseline while <strong>outperforming Transformers and other linear RNNs</strong>, and shows the strongest length extrapolation among tested gate ranges on S₃, S₄, and periodic audio continuation. The kernel change is a few lines on top of existing KDA kernels and retains <strong>96–97% of standard KDA throughput</strong> — the rotation is nearly free.</p>
+<p><strong>It's already being adopted.</strong> Gated DeltaNet variants have landed in recent Qwen-family models; KDA variants in Upstage Solar, Z.ai, and inclusionAI models (per the paper's survey). This isn't a curiosity — it's the recurrent backbone of shipping models.</p>
+<p><strong>The honest caveat.</strong> Complex KDA matches KDA on language modeling rather than beating it; the gains are in state-tracking expressivity and extrapolation. Whether that expressivity converts to better reasoning at 70B+ scale is the open question — and the paper's promised scaling experiments will be the ones to watch.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>Linear attention's economics are settled</strong>: flat memory and linear compute vs. attention's quadratic bill — that's why Kimi Linear's 6× decode speedup at 1M context matters.</li>
+<li><strong>The delta rule at β=2 is a mirror, not an eraser.</strong> That geometric reading is the key to everything that follows.</li>
+<li><strong>A scalar gate can never rotate; a signed per-channel gate can.</strong> Mirror × mirror = rotation, in a single update, with complex eigenvalues ±i to prove it.</li>
+<li><strong>Rotations buy counting</strong>: one CKDA layer tracks S₃, S₄, A₅ — matching two-update DeltaProduct₂ at half the recurrent cost.</li>
+<li><strong>Free lunch, almost</strong>: 96–97% of KDA's kernel throughput retained, transitions stay diagonal-plus-rank-one and non-expansive.</li>
+</ol>
+<p><strong>Companion notebook:</strong> <code>kimi-delta-attention.ipynb</code> — verifies the ±i spectrum, builds a mod-12 counter out of repeated CKDA updates, and plots the Kimi Linear benchmarks, all in NumPy.</p>
+<p><em>Sources: "Complex KDA: Understanding and Enhancing the Expressivity of Kimi Delta Attention" (Siems et al., arXiv 2609.24797, Sept 22, 2026); "Kimi Linear: An Expressive, Efficient Attention Architecture" (Kimi Team / Moonshot AI, arXiv 2510.26692). Benchmark figures are from the Kimi Linear technical report under an identical training recipe.</em></p>
+<hr />
+<p><strong>Suggested Medium tags:</strong> artificial-intelligence, machine-learning, deep-learning, llm, nlp</p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/kimi-delta-attention.ipynb">kimi-delta-attention.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
