@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>100,000 Videos in Your Pocket: How Douyin's Recommender Reads Your Whole Life in O(1) | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>100,000 Videos in Your Pocket: How Douyin's Recommender Reads Your Whole Life in O(1)</h1>
+<div class="meta">2026-10-03 &middot; Recommendation systems (ultra-long sequence modeling)</div>
+<article class="post">
+<p><strong>One-line:</strong> ByteDance's SequenceO1 compresses a 100,000-interaction watch history into a pocket-sized sketch, reads it in constant time, and still finishes +2.3% more videos — live now on Douyin at full traffic.</p>
+<hr />
+<p>A year of Douyin is roughly <strong>100,000 interactions</strong> per user. Every recommender on earth wants to read all of them — your durable taste is in there, not just last Tuesday's mood. Almost none do. The fine-ranking stage that scores every candidate video has milliseconds to decide, and naive attention over 100K items is a quadratic bonfire: cost grows with the <em>square</em> of history length, before you even count storing and shipping 100K feature vectors per user, per candidate, per request.</p>
+<p>So production systems cheated. They truncated to the last 1–2K items, or ran a separate two-stage pipeline (cluster the lifelong history offline, retrieve a handful of "relevant" items online) that never got optimized against the final ranking objective. Useful. Also lossy, stale, and architecturally awkward.</p>
+<p>A RecSys '26 paper from ByteDance — <em>SequenceO1: End-to-End Ultra-Long (100K) Sequence Modeling in Recommendation with Low-Rank Caching</em> (arXiv:2609.08443, Sep 8, 2026) — stops cheating. It is <strong>deployed at full traffic on Douyin and Douyin Lite</strong>, replaces the two-stage TWIN V2 lifelong module outright, and does it while being <strong>49.9× cheaper to train and 63.9× cheaper to serve</strong> than naively scaling the previous approach to 100K. Here is how, in plain English first.</p>
+<hr />
+<h2>ELI5: Your watch history is a library; the sketch is the index card</h2>
+<p>Imagine the recommender is a librarian recommending your next book. Your library has <strong>100,000 books</strong> — every video you ever watched, liked, skipped, or finished. Reading the whole library for every single recommendation is impossible: by the time the librarian finishes, you've closed the app.</p>
+<p>Three old strategies, three failures:</p>
+<ol>
+<li><strong>Truncation</strong> — only look at the books on top of the pile (last 1–2K). Fast, but the librarian forgets you loved astronomy in 2023.</li>
+<li><strong>Two-stage retrieval</strong> — a different clerk pre-sorts your library into labeled boxes offline. On request, someone runs and grabs a few boxes. Works, but the clerk's sorting was never checked against what actually makes you stay and watch.</li>
+<li><strong>Just read faster</strong> — throw hardware at full attention. At 100K, the math (and the data movement) eats the building.</li>
+</ol>
+<p>SequenceO1 does something smarter: <strong>summarize the library onto index cards once, then read the cards.</strong></p>
+<ul>
+<li>A small set of learned "prototype" slots — call them taste buckets like <em>cooking, football, astronomy, comedy sketches</em> — each absorbs the history items that belong to it. The result is a fixed-size <strong>sketch</strong>: a few hundred to a few thousand summary vectors that stand in for all 100,000 items.</li>
+<li>The cards don't depend on which video you're scoring right now, so they can be <strong>computed once per user and cached</strong>. When a request arrives, the ranker reads the cache, not the library. That's the "O1" in the name: the cache-hit path costs <strong>O(1)</strong> in the raw history length.</li>
+<li>Your <em>recent</em> behavior still gets read in full — the last <strong>10,000 interactions</strong> — because yesterday's binge matters more than a 2023 phase. Long-term taste comes from the sketch; short-term intent comes from the fresh tail. Two time scales, fused at the end.</li>
+</ul>
+<p><img alt="Sketch compression" src="assets/d1_compression.png" /></p>
+<p><em>A 100K history squeezed into k fixed slots. At k=256 the sketch holds 390× fewer rows than the raw history — and its size never grows with n.</em></p>
+<hr />
+<h2>How it works: compress, then reason — twice</h2>
+<h3>1. Sketch Attention compresses the history</h3>
+<p>Each of the 100K history items is softly assigned across the <strong>k learnable prototypes</strong> (in the paper, k ranges from several hundred to several thousand). Prototype-wise normalization means every item distributes its mass over prototypes — nothing is dropped outright, just summarized. The output is a <code>k × d</code> sketch: an implicit <strong>low-rank representation along the length dimension</strong>. It is differentiable, so gradients from the final ranking loss flow back through the compression. Unlike the old two-stage pipelines, the summary is <em>trained for the ranking job</em>, not frozen offline.</p>
+<h3>2. STCA reasons at two time scales</h3>
+<p>Target-conditioned reasoning (Stacked Target-to-History Cross Attention, the lab's earlier STCA design) then runs twice:</p>
+<ul>
+<li><strong>Recent branch:</strong> the candidate attends over the <strong>recent 10K suffix</strong> — recency-sensitive signals, exact and fresh.</li>
+<li><strong>Sketch branch:</strong> the candidate attends over the <strong>fixed-size sketch</strong> — durable, ultra-long preferences.</li>
+<li>A lightweight fusion combines the two before the downstream ranker scores.</li>
+</ul>
+<p><img alt="Compress-then-reason pipeline" src="assets/d2_pipeline.png" /></p>
+<p><em>One sketch, two time scales: the 10K suffix carries "what you're into this week," the sketch carries "who you are." Source: SequenceO1, arXiv:2609.08443.</em></p>
+<h3>3. The system makes it cheap enough to matter</h3>
+<p>The model trick alone wouldn't survive production. Three system moves close the gap:</p>
+<ul>
+<li><strong>Low-rank caching.</strong> The sketch is user-only and target-agnostic, so it is cached during training (a local KV cache reuses sketches across repeated instances of the same user) and across consecutive serving requests. On a hit, the system skips storing, transferring, and processing the raw 100K sequence entirely.</li>
+<li><strong>Multi-request user-level batching (MRLB).</strong> One user's many candidates share one sketch read instead of one read each.</li>
+<li><strong>FlashSA.</strong> A fused kernel (in the FlashAttention lineage) computes the sketching step without materializing huge intermediates under ragged batches, plus pipeline lift to overlap cache-miss computation with recall.</li>
+</ul>
+<p><img alt="Cost scaling" src="assets/d3_cost_scaling.png" /></p>
+<p><em>Full attention grows quadratically; even linear suffix attention drags 100K items per request. The cached sketch is flat in n — that is the whole game.</em></p>
+<h3>The numbers (ByteDance-reported, Douyin/Douyin Lite)</h3>
+<p>Against naively scaling STCA to 100K (ablation setting):</p>
+<ul>
+<li><strong>49.9× cheaper training FLOPs</strong> (MRLB operating point R=40, cache-hit p=0.5)</li>
+<li><strong>63.9× cheaper inference FLOPs</strong> (serving reuse R=300, p=0.6)</li>
+<li><strong>83% of the quality gain retained:</strong> +1.07% Finish AUC vs +1.29% for direct 100K scaling (at 85K average truncated length). You give up 17% of the gain; you cut cost by ~50–64×.</li>
+</ul>
+<p>Full production offline eval (vs STCA 10K + TWIN V2, with TWIN V2 removed):</p>
+<ul>
+<li><strong>All 10 objectives improve.</strong> Finish AUC +0.29%, Favourite UAUC +1.47%, Dislike UAUC +3.63% — the biggest wins exactly where long-term taste lives.</li>
+</ul>
+<p>One-month online A/B, Douyin and Douyin Lite (all statistically significant):</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Douyin</th>
+<th>Douyin Lite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>30-Day Activeness</td>
+<td>+0.20%</td>
+<td>+0.23%</td>
+</tr>
+<tr>
+<td>Duration</td>
+<td>+1.50%</td>
+<td>+1.67%</td>
+</tr>
+<tr>
+<td>Finish</td>
+<td><strong>+2.33%</strong></td>
+<td><strong>+3.49%</strong></td>
+</tr>
+<tr>
+<td>Comment</td>
+<td>+3.59%</td>
+<td>+8.61%</td>
+</tr>
+<tr>
+<td>Like</td>
+<td>+2.36%</td>
+<td>+2.94%</td>
+</tr>
+<tr>
+<td>Dislike</td>
+<td><strong>−6.98%</strong></td>
+<td>−6.00%</td>
+</tr>
+</tbody>
+</table>
+<p>At Douyin's scale, +2.3% Finish and −7.0% Dislike are not rounding errors — they are product-level moves. Notably, low-active users gain the most on Activeness (+0.55% Douyin, +0.66% Lite): long memory re-engages the people a 1K window had already forgotten.</p>
+<p><img alt="Signal vs cost trade-off" src="assets/d4_tradeoff.png" /></p>
+<p><em>Schematic: where the classic approaches sit on signal-vs-cost, and where the cached sketch lands. Percentages are illustrative of the paper's reported ordering, not measured values.</em></p>
+<hr />
+<h2>State of the art: the pattern behind the paper</h2>
+<p>SequenceO1 matters beyond one app, for three reasons.</p>
+<p><strong>1. Recommendation is now where "long context" gets real.</strong> LLM folks argue about 128K vs 1M tokens. Recommenders quietly crossed 100K <em>events</em> per user in production — with millisecond latency budgets, not seconds. The winning move was not a bigger attention window; it was <strong>compressing the long part into a fixed-size, cacheable state</strong>. Expect "sketch, don't stream" to show up anywhere a lifelong sequence meets a latency budget — agents with lifelong memory included.</p>
+<p><strong>2. End-to-end beats pipeline-of-record.</strong> The previous champion, TWIN V2, compressed lifelong behavior with offline hierarchical clustering, then retrieved online. SequenceO1 deleted it and let the ranking loss train the compressor directly — and improved <em>every</em> objective while doing so. Two-stage representation transfer (the paper cites LLaTTE and SOLARIS retaining only ~42–53% of upstream gains downstream) keeps losing to "just train the whole thing on the real objective," once the systems work makes that affordable.</p>
+<p><strong>3. The cache is the architecture.</strong> KV-cache thinking escaped the transformer. Here the cached object isn't per-position states (which grow with length); it's a <strong>fixed-size user sketch</strong>, so cache footprint is independent of n. That is the difference between "caching helps" and "caching changes what's possible": million-scale histories are now a sketch-size decision, not a rewrite.</p>
+<p><strong>The caveats, honestly.</strong> These are ByteDance's own numbers on their own ranker; the 83%-retention figure is from the ablation setting, and the FLOPs multipliers assume the stated cache-hit rates (50–60%). A sketch with k in the hundreds-to-thousands <em>will</em> blur rare, long-tail interests — the paper's answer is that the 10K suffix covers recency and most of the loss is acceptable, but per-user tail recall isn't broken out. And Douyin's behavior density (a year ≈ 100K events) is friendlier to compression than sparse domains like e-commerce purchases. Copy the pattern, not the constants.</p>
+<p><em>Notebook: the companion <code>files/sequenceo1-sketch-attention.ipynb</code> builds a toy Sketch Attention in NumPy — a 100K history, k=256 prototypes, and the per-request row math showing why the cache wins (390× fewer rows in the sketch; 10× fewer rows touched per 300-candidate request). All cells run in seconds, no GPU.</em></p>
+<hr />
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Compress the long part.</strong> A fixed-size, learned sketch of 100K interactions retains 83% of full-history ranking gains at ~1/50th–1/64th the FLOPs.</li>
+<li><strong>Split time scales.</strong> Long-term taste from the sketch, short-term intent from a fresh 10K suffix. One attention budget, two jobs.</li>
+<li><strong>Cache user-only state.</strong> Target-agnostic representations are computed once and reused across candidates, requests, and training instances — O(1) per hit, independent of history length.</li>
+<li><strong>Train the compressor on the real loss.</strong> Replacing the offline two-stage TWIN V2 with an end-to-end sketch improved all 10 production objectives, then +2.33% Finish / −6.98% Dislike online.</li>
+<li><strong>The pattern generalizes.</strong> Anywhere a lifelong sequence meets a latency budget — feeds, ads, agent memory — the answer is shaping up to be: sketch it, cache it, reason over the sketch.</li>
+</ul>
+<p><em>Sources: Guan et al., "SequenceO1: End-to-End Ultra-Long (100K) Sequence Modeling in Recommendation with Low-Rank Caching," RecSys '26 (arXiv:2609.08443, Sep 8, 2026); predecessor: Guan et al., "Make It Long, Keep It Fast" (arXiv:2511.06077). All figures ByteDance-reported unless labeled schematic.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/sequenceo1-sketch-attention.ipynb">sequenceo1-sketch-attention.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
