@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>78 Billion Parameters, 3.5 Awake: Germany's Sovereign AI Just Shipped | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>78 Billion Parameters, 3.5 Awake: Germany's Sovereign AI Just Shipped</h1>
+<div class="meta">2026-10-05 &middot; Tech news / LLMs / ML architectures (Aleph Alpha Kolibri sovereign AI)</div>
+<article class="post">
+<p><strong>One-line:</strong> On German Unity Day, Aleph Alpha open-sourced <strong>Kolibri-1</strong> — a 78.1B-parameter MoE that only wakes <strong>3.46B per token</strong>, with a German-native tokenizer, Apache 2.0 weights, and a training pipeline built to satisfy the EU AI Act.</p>
+<hr />
+<p>On October 3 — Germany's Day of German Unity — Aleph Alpha put the full weights of <strong>Kolibri-1</strong> on Hugging Face under Apache 2.0. No API. No waitlist. Download, run, modify.</p>
+<p>The numbers: <strong>78.1 billion total parameters, 3.46 billion active per token</strong> — 4.4%. A router sends each token to <strong>6 of 384 experts in each of 50 layers</strong>, plus one shared expert that sees everything. Context runs to <strong>1,048,576 tokens</strong>. Training took <strong>768 NVIDIA B200s, 21 days</strong> — roughly 392,000 GPU-hours and 6.4e23 FLOPS — on infrastructure in <strong>Germany and Finland</strong>, under European and German law.</p>
+<p>Aleph Alpha is Europe's other champion AI lab (with Mistral), ~200 people, founded 2019. This is their answer to a question governments keep asking: can we have a frontier-class model that never leaves our legal jurisdiction?</p>
+<p><img alt="MoE routing: 78.1B stored, 3.46B awake" src="assets/d1_routing.png" /></p>
+<p><em>78.1B total, 3.46B active per token (4.4%). The router picks 6 of 384 experts per layer — 1.56% — across 50 layers, plus one always-on shared expert.</em></p>
+<hr />
+<h2>ELI5: the hospital of 384 specialists</h2>
+<p>Imagine a hospital with 384 specialists — but for every patient, a triage nurse picks exactly 6. The cardiology patient never wakes the podiatrist. That's Kolibri's Mixture-of-Experts: the <em>knowledge</em> of 78 billion parameters, the <em>compute bill</em> of 3.5 billion.</p>
+<p>The catch is the parking lot. All 384 specialists are on staff whether they see patients or not — the <strong>FP8 checkpoint is ~78 GB</strong>. Kolibri computes like a 3.5B model but needs the memory of a 78B one. Minimum config: two 80GB A100s, two H100s, one H200, or a single B200/B300. This is datacenter hardware, not your laptop — "open weights" and "runs anywhere" are different claims.</p>
+<p>One Hacker News commenter who ran it on a single RTX Pro 6000 in FP8 measured <strong>~170 tokens/second</strong> — the small active count paying off directly in serving speed.</p>
+<hr />
+<h2>How it works: routing + a tokenizer that reads German</h2>
+<h3>1. The router: 6 of 384, 50 times per token</h3>
+<p>Every token passes through 50 layers. In each layer, a learned router scores 384 experts and forwards the token to the top 6. A shared expert processes every token regardless — think of it as the generalist on call who absorbs common patterns so the routed experts can stay specialized. The router is the mechanism covered in our Sep 26 MoE post: it learns <em>which</em> knowledge the token needs, not the knowledge itself.</p>
+<p>The active-parameter math matters for serving cost: at the same output budget, per-token FLOPs track active parameters, not total. ~3.46B active means decode behaves like a small model — hence the 170 tok/s figure.</p>
+<h3>2. UniBPE: the tokenizer that respects German morphology</h3>
+<p>German glues words together. <em>Bundesverfassungsgericht</em> (Federal Constitutional Court) is one word. A tokenizer trained mostly on English — like GPT-5's <code>o200k_base</code> — chops it into 6 fragments: <code>Bund|es|ver|fass|ungs|gericht</code>. Kolibri's tokenizer splits it into 2: <code>Bundes|verfassungsgericht</code>.</p>
+<p>Aleph Alpha built <strong>UniBPE</strong> for this: it keeps BPE's bottom-up merging but scores each merge with the Unigram objective, which respects how German builds compounds. The 128k-vocabulary tokenizer needs <strong>11.2% fewer tokens for German text than GPT-5's tokenizer</strong> — the best of 10 they measured — and an independent check by a third party ran 6 tokenizers over the full German Basic Law (185 KB of legal German): Kolibri needed <strong>35,190 tokens; GPT-5's tokenizer needed 41,482 (+17.9%)</strong>.</p>
+<p><img alt="Tokenizer fertility on German text" src="assets/d2_tokenizer.png" /></p>
+<p><em>Left: "Bundesverfassungsgericht" as 6 fragments (o200k_base) vs 2 (Kolibri UniBPE). Right: token counts on the 185 KB German Basic Law — Kolibri needs 15–24% fewer tokens than the others.</em></p>
+<p>Why it matters beyond efficiency: <strong>fewer tokens per German word means more German fits in the same context window</strong>, and every token is a forward pass. Tokenizer efficiency is a direct serving-cost discount on every German document.</p>
+<h3>3. The 1M-token trick: not all layers see everything</h3>
+<p>The 1,048,576-token context has an asterisk — a clever engineering one. Only <strong>10 of the 50 layers process the full context</strong>; the other 40 use a <strong>512-token span</strong>. Long-range structure gets captured where it matters; local detail stays local. The model trained natively to 262,144 tokens, and Aleph Alpha recommends staying at or under 262k for serving efficiency.</p>
+<h3>4. Built for regulated work, not just benchmarks</h3>
+<ul>
+<li><strong>RAG with abstention</strong>: on supplied documents, Kolibri answers from the evidence and <em>declines</em> when the evidence is insufficient — hallucination reduction by design.</li>
+<li><strong>Four reasoning-effort levels</strong> (none/low/medium/high): the reasoning-depth vs speed dial, per request.</li>
+<li><strong>Compliance pipeline</strong>: 4.5M-URL blocklist, every third-party dataset individually checked for license terms and opt-outs, personal data redacted pre-training, technical report documenting EU AI Act / GDPR / copyright handling. Aleph Alpha signed the EU General-Purpose AI Code of Practice.</li>
+</ul>
+<hr />
+<h2>For experts: benchmarks, compute, and honest limitations</h2>
+<p><img alt="Kolibri-1 benchmarks from the model card" src="assets/d3_benchmarks.png" /></p>
+<p><em>GPQA Diamond 84.3 (EN) / 81.3 (DE), AIME 2025 96.9, SWE-Bench Verified 66.4. The card's "best dense" column wins everywhere — and is never named.</em></p>
+<p>The model card is unusually honest. Overall: <strong>75.5 (EN) and 70.8 (DE)</strong> vs the card's own unnamed best-dense baseline at <strong>80.2 / 79.9</strong>. Kolibri loses to its own comparison column on every aggregate. It wins the quality-per-active-parameter curve against other MoE models in its band, not the absolute frontier.</p>
+<p>Other numbers worth knowing:</p>
+<ul>
+<li><strong>Training corpus: 20 trillion tokens</strong> — 43.4% English, 23.4% German. The card's philosophy: "depth over breadth — two languages excellently rather than many languages adequately."</li>
+<li><strong>RULER at 1M context: 63.2%</strong> — vs a 73.1% baseline that only runs at 512k. Nobody else is scoring 1M-context retrieval at all.</li>
+<li><strong>Compute</strong>: 768 B200 × 21 days ≈ 392,000 GPU-hours (incl. mid-training + context extension), 6.4e23 FLOPS, ~950 MWh estimated. For reference, that's roughly $2–3M of B200 rental.</li>
+<li><strong>Distillation sources</strong>: English data re-phrased from Google's Gemma 4, German from Mistral-NeMo, quality labels from Qwen3-32B — with bias filters, though the card concedes an inheritance problem: training data included material from Chinese-language models with known political bias, "actively reduced through data filtering and dedicated alignment training."</li>
+<li><strong>Validates small first</strong>: a 30B-total / 3B-active sibling ("Kolibri Origin") ran the pipeline before the ~3-month scale-up to the full model.</li>
+</ul>
+<p><strong>Where it sits in the open-weights landscape:</strong> Reflection AI is reportedly releasing an open-weight system in October 2026 too (Nvidia-backed, $7B+ compute committed through 2029, targeting DeepSeek/Qwen dominance). DeepSeek and Qwen still own the open-weight benchmark crowns; Kolibri isn't trying to take those — it's the first open-weight MoE optimized <em>for sovereignty and German</em>, not for the leaderboard.</p>
+<p><img alt="Context architecture and training bill" src="assets/d4_context_compute.png" /></p>
+<p><em>Left: the 1M context is 10 full-attention layers + 40 local 512-token layers. Right: the training bill behind Kolibri.</em></p>
+<hr />
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Kolibri-1</strong>: 78.1B MoE, 3.46B active/token, 1M context, Apache 2.0 — open weights, released Oct 3, 2026 on German Unity Day.</li>
+<li><strong>Sovereignty is the product</strong>: EU-trained, per-dataset license checks, 4.5M-URL blocklist, EU AI Act documentation — aimed at governments that can't send data to a foreign API.</li>
+<li><strong>UniBPE tokenizer</strong> cuts German token counts 11–18% — fewer tokens = cheaper serving + more German per context window.</li>
+<li><strong>Honest model card</strong>: it loses to its own unnamed dense baseline on every aggregate — and published that anyway. Quality-per-active-parameter is its real claim.</li>
+<li><strong>The trade</strong>: computes like a 3.5B model, needs 78 GB of GPU memory. Open weights ≠ cheap to run.</li>
+</ul>
+<p><em>Suggested tags: AI, LLMs, Machine Learning, Open Source, Tech News</em></p>
+<hr />
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/kolibri_sovereign_ai.ipynb">kolibri_sovereign_ai.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
