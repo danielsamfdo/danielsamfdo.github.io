@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>501B Stored, 23B Awake: Reflection's Beam and the Efficiency Turn in the Open-Weight Race | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>501B Stored, 23B Awake: Reflection's Beam and the Efficiency Turn in the Open-Weight Race</h1>
+<div class="meta">2026-10-06 &middot; Tech news / ML architectures (Reflection AI Beam open-weight MoE)</div>
+<article class="post">
+<p><strong>One-line:</strong> Reflection AI — a two-year-old Brooklyn startup with ~$4.7B raised and zero public models — just unveiled <strong>Beam</strong>: a 501B-parameter text-only MoE that wakes <strong>23B per token</strong>, claims parity with Z.ai's GLM-5.2 at 3–4x less inference compute, and ships Apache 2.0 weights this month.</p>
+<hr />
+<p>On October 5, Reflection AI put its first public model on the table. The Brooklyn startup — founded 2024 by two former Google DeepMind researchers, backed by Nvidia, Sequoia, and Lightspeed at a $25B pre-money valuation — had never released a model before. Beam is its proof of work.</p>
+<p>The numbers: <strong>501 billion total parameters, 23 billion active per token</strong> — 4.6%. Pretrained on <strong>23.8 trillion tokens</strong>. A <strong>1-million-token context window</strong>. Trained, per the announcement, with <strong>high-compute reinforcement learning</strong> aimed at reasoning, coding, and agentic tasks. The pitch is blunt: match the best Chinese open models on reasoning benchmarks — Z.ai's GLM-5.2 (744B total, 40B active) is the named target — while costing "a fraction of the token cost and inference time compute." Full weights, a technical report, and a model card land under Apache 2.0 later this month, distributed through hyperscalers and neoclouds.</p>
+<p><img alt="Total vs active parameters: Beam vs GLM-5.2" src="assets/d1_params.png" /></p>
+<p><em>501B total, 23B active (4.6%) vs GLM-5.2's 744B total, 40B active (5.4%). Per-token compute tracks the colored bar, not the gray one.</em></p>
+<hr />
+<h2>ELI5: the warehouse with one lit aisle</h2>
+<p>Picture a warehouse the size of a city block. 501 billion things are stored in it. But every order is filled by lighting up a single aisle — 23 billion things' worth — and everything else stays dark.</p>
+<p>That's Mixture-of-Experts: the model <em>stores</em> 501B parameters of knowledge, but each token only pays the compute bill for 23B. A dense 501B model would burn ~1,002 GFLOPs per token; Beam burns ~46 — a <strong>21.8x reduction</strong> before any other optimization. The notebook attached to this post runs that arithmetic plus a toy router you can play with.</p>
+<p>The catch is the warehouse itself. All 501B parameters are stored whether they fire or not — roughly <strong>501 GB in FP8</strong> — and at a 1M-token context the KV cache gets heavy (our notebook estimates ~340 GB under stated illustrative assumptions). Beam computes like a 23B model but <em>parks</em> like a 501B one. This is why "open weights" ≠ "runs on your machine."</p>
+<hr />
+<h2>How it works: sparsity + high-compute RL</h2>
+<h3>1. The router: 23 of 501, every token, every layer</h3>
+<p>Every token passes through the layers. In each MoE layer, a learned router scores all the experts and forwards the token to a small top-k subset. The router learns <em>which</em> knowledge the token needs; the experts hold the knowledge. We covered the mechanism in our Sep 26 MoE post — same machinery, new scale point.</p>
+<p><img alt="How MoE routing works" src="assets/d2_routing.png" /></p>
+<p><em>Top-k routing: 2 of 24 experts lit in the toy diagram. Beam's sparsity is 23/501B ≈ 4.6%.</em></p>
+<h3>2. High-compute reinforcement learning</h3>
+<p>The most interesting line in the announcement isn't a parameter count — it's the training recipe. "High-compute RL" means the RL post-training phase that teaches reasoning, coding, and agentic behavior consumed serious compute, not a token fine-tune on the side. This is the same lesson the reasoning-model era taught: supervised pretraining gets you fluent, RL at scale gets you reliable. Reflection is betting the open-weight race is now decided in post-training compute, not pretraining scale.</p>
+<h3>3. Pretraining scale: 23.8T tokens</h3>
+<p>23.8 trillion tokens is ~48 tokens per total parameter — in the ballpark of the compute-optimal pretraining ratios the industry converged on. It's the densest knowledge-loading phase an open model has had, and it's what lets the router have 501B worth of specialists to choose from.</p>
+<h3>4. The 1M-token context and its tax</h3>
+<p>A million-token window is table stakes for frontier models now, but remember the warehouse math: context is memory, and memory is the scarce resource in MoE serving. The 1M window is a headline; the real number that matters is what you can <em>serve</em> at that window without a datacenter.</p>
+<hr />
+<h2>SOTA: where Beam sits on the leaderboard</h2>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Total / active params</th>
+<th>Context</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Beam (Reflection AI)</strong></td>
+<td>501B / 23B</td>
+<td>1M</td>
+<td>announced Oct 5; weights late Oct, Apache 2.0</td>
+</tr>
+<tr>
+<td>GLM-5.2 (Z.ai)</td>
+<td>744B / 40B</td>
+<td>—</td>
+<td>Beam's named benchmark target</td>
+</tr>
+<tr>
+<td>Inkling (Thinking Machines)</td>
+<td>—</td>
+<td>—</td>
+<td>multimodal; Beam outscores it on 4 coding tests (company-reported)</td>
+</tr>
+<tr>
+<td>Kolibri (Aleph Alpha)</td>
+<td>78B / 3.5B</td>
+<td>1M</td>
+<td>Apache 2.0, live since Oct 3 (see our Oct 5 post)</td>
+</tr>
+<tr>
+<td>Mistral Large 4</td>
+<td>—</td>
+<td>—</td>
+<td>announced today, open weights Oct 27</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Reflection's efficiency claim" src="assets/d3_efficiency.png" /></p>
+<p><em>Reflection claims "3–4x less inference compute." Active-param arithmetic (40/23 ≈ 1.7x) explains part; the rest has to come from architecture and the serving stack — and the claim is still self-reported.</em></p>
+<p>Three things to keep straight:</p>
+<p><strong>The numbers are company-reported.</strong> TechCrunch notes the performance claims haven't been independently verified. Beam reportedly scores on par with GLM-5.2 on advanced reasoning and beats Inkling on four coding tests — but the weights aren't out yet, so LMArena and Artificial Analysis can't confirm. Moonshot's Kimi K3 reportedly still beats Beam on pure capability. Treat the leaderboard as provisional until independent scores land.</p>
+<p><strong>The efficiency thesis is the real story.</strong> "3–4x less inference compute" is a <em>cost</em> claim, not a capability claim. If it holds, Beam becomes the workhorse for enterprises that want open weights without Chinese-lab dependencies — and Reflection's pitch to "AI factories" (institutions training the model on their own proprietary data, with sovereign-AI partnerships already being tested with Shinsegae Group in South Korea) only makes sense if per-token economics beat the alternatives. Hedge funds and trading firms are reportedly first in line — the verticals where inference cost is the whole game.</p>
+<p><strong>The compute moat is visible.</strong> Reflection signed $7B+ in deals with SpaceX and Nebius for Nvidia GB300 access through 2029. That's the infrastructure behind "high-compute RL." The open-weight race has become a compute-procurement race.</p>
+<p><img alt="The open-weight race, October 2026" src="assets/d4_timeline.png" /></p>
+<p><em>Chinese labs set the bar; July brought Inkling, October brings Kolibri, Beam, and Mistral Large 4. The US and Europe are answering back — on efficiency, not raw scale.</em></p>
+<hr />
+<h2>Takeaways</h2>
+<ol>
+<li><strong>Active params, not total, set the inference bill.</strong> 501B stored / 23B awake = 46 GFLOPs per token — dense-equivalent would cost 21.8x more compute.</li>
+<li><strong>Storage still charges by the total.</strong> ~501 GB FP8 weights plus a heavy KV cache at 1M context: open weights ≠ cheap to run.</li>
+<li><strong>The race moved to post-training.</strong> "High-compute RL" is Reflection's real bet — reasoning and agentic reliability are trained, not pretrained.</li>
+<li><strong>Efficiency is the Western moat.</strong> Beam doesn't claim to top the leaderboard; it claims to match GLM-5.2 at 3–4x less inference compute. If independent benchmarks confirm it, the open-weight conversation shifts from "who's biggest" to "who's cheapest per useful token."</li>
+<li><strong>Verify in late October.</strong> Weights, technical report, and model card ship this month under Apache 2.0 — that's when the claims become testable. Until then: provisional.</li>
+</ol>
+<hr />
+<p><strong>Sources:</strong> Reflection AI announcement and TechCrunch (Oct 5, 2026); GLM-5.2 figures via TechCrunch; Inkling (Thinking Machines Lab, July 2026); Kimi K3 comparison via aidailypost; Kolibri figures from our Oct 5 post; Mistral Large 4 via Reuters (Oct 6, 2026).</p>
+<h2>Diagrams</h2>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/beam_moe_efficiency.ipynb">beam_moe_efficiency.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
