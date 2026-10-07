@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Model Wasn't Stupid. It Was Blind: How a Four-Sentence Prompt Took Claude to a Perfect 100 on ARC-AGI-3 | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Model Wasn't Stupid. It Was Blind: How a Four-Sentence Prompt Took Claude to a Perfect 100 on ARC-AGI-3</h1>
+<div class="meta">2026-10-07 &middot; Agents / benchmarks (VISTA visual harness — MIT, ARC-AGI-3)</div>
+<article class="post">
+<p><strong>One-line:</strong> On October 1, MIT's Kaiming He team published <strong>VISTA</strong> — a visual harness with a lossless photo-album memory that lifted Claude Opus 5.0's Relative Human Action Efficiency on ARC-AGI-3 from <strong>40.68 to a perfect 100.00</strong>, clearing all 25 public games with <strong>57.4% fewer actions</strong> than first-time human players. No new model. No training. Four sentences of prompt.</p>
+<hr />
+<p>ARC-AGI-3 is the cruel exam of the AI world. It hands an agent an unfamiliar video game — grid-world puzzles, checkers variants, web games — and demands it learn the rules from scratch, by playing. No tutorial. The standard way to play it: pipe the game state to the model as a 64×64 numeric text grid, ask what to do next, and count the moves.</p>
+<p>On October 1, Qiushi Han, Keya Hu, Linlu Qiu, Cathy Wu, and Kaiming He at MIT CSAIL posted a paper that says, in effect: the models were never bad at this test. They were blind. <a href="https://arxiv.org/abs/2610.02200v1">arXiv:2610.02200</a></p>
+<p>The headline number, straight from the abstract: VISTA took Claude Opus 5.0's <strong>Relative Human Action Efficiency (RHAE)</strong> from 40.68 to <strong>100.00</strong> — the model completed all 25 public games using 57.4% fewer actions than first-time human participants. Same model. Different eyes.</p>
+<p><img alt="ARC-AGI-3: same models, different harness" src="assets/d1_score_lift.png" /></p>
+<p><em>Official interface vs VISTA harness (RHAE, higher = better). The headline row is from the paper; the other rows are as reported in early coverage of the paper.</em></p>
+<hr />
+<h2>ELI5: the blindfolded student</h2>
+<p>Imagine two students taking a video-game exam.</p>
+<p>Student A gets a spreadsheet of numbers describing the screen — "row 3, column 7 = 5" — updated every move. Student B gets actual screenshots, plus a photo album: every screenshot ever shown, kept perfectly, that they can flip through for free, zoom into, and read pixel values from mid-thought.</p>
+<p>Student A is how every frontier model has been playing ARC-AGI-3. Student B is VISTA.</p>
+<p>Here's the twist nobody predicted: Student B is <em>cheaper</em>. When coverage of the paper swapped the 64×64 numeric grid for plain 512×512 screenshots on GPT-5.6 Sol, the score went from <strong>13.33 to 47.32</strong> — and the image version used <strong>30.7 million tokens per game versus 71.9 million for text</strong>. A screenshot says in one picture what takes the grid thousands of digits to spell out. The model wasn't missing intelligence. It was missing <em>eyes</em>.</p>
+<p><img alt="Eyes beat grids" src="assets/d2_eyes_beat_grids.png" /></p>
+<p><em>Same model, same harness — only the observation format changed. Perception was the bottleneck, and seeing cost fewer tokens, not more. (Reported in early coverage of the paper.)</em></p>
+<hr />
+<h2>How it works: eyes, a photo album, and four sentences</h2>
+<h3>1. The eyes: screenshots instead of spreadsheets</h3>
+<p>The official ARC-AGI-3 interface describes the world as a 64×64 numeric grid. VISTA throws that away and feeds the model <strong>raw visual observations</strong> — screenshots at 512×512. Spatial relationships that the grid buried in coordinates become directly visible: adjacency, symmetry, motion. The model perceives the environment the way a human player does.</p>
+<h3>2. The photo album: lossless visual memory</h3>
+<p>This is the core idea. VISTA maintains a <strong>lossless visual memory</strong>: every frame the environment returns is archived in its original form — not summarized, not embedded into a vector, not compressed into a rolling context window. The model can actively retrieve any past observation mid-reasoning, zoom into corners, or read exact pixel values.</p>
+<p>The killer detail: <strong>flipping through the album doesn't count as a step</strong>. Only real actions in the game do. The model gets to think with its eyes for free, and pay only for moves. Contrast that with the usual agent pattern — stuffing observations into a growing context until the window overflows and the past degrades into a vague summary. VISTA's memory never degrades. It's a photo album, not a rumor of one.</p>
+<p><img alt="The photo-album architecture" src="assets/d3_photo_album.png" /></p>
+<h3>3. Four sentences, zero training</h3>
+<p>VISTA has <strong>no trained components</strong>. The prompt for each game is the same template — four sentences, not a single word teaching it how to play that specific game. The model figures out each game's rules and writes them down as notes in natural language. For the checkers game LF52, the dominant programmatic approach (Schema) wrote a full <strong>~4,000 lines of Python</strong> to capture the rules; the VISTA model captured the same rule in <strong>three sentences of notes</strong>. 4,000 lines of code versus three sentences. That ratio is the whole argument for harness-first progress.</p>
+<hr />
+<h2>SOTA: the numbers behind the perfect score</h2>
+<p>The paper-verified core: <strong>40.68 → 100.00 RHAE</strong>, 25/25 public games cleared, <strong>57.4% fewer actions</strong> than first-time humans. Claude used a reported 7,302 total steps — about <strong>0.43× the human average</strong>, and on the game m0r0, humans needed 1,107 steps while Claude needed 219.</p>
+<p>The lift generalizes beyond one strong model. Early coverage reports that a <strong>320B open-weight model</strong> scoring a mere 1.89 with the official interface was lifted to <strong>66.93</strong> by VISTA — a ~35× improvement from a harness alone, no weight changes. GPT-5.6 Sol reportedly scored 98.27 under the same harness.</p>
+<p>The same design extends with minimal adaptation. Per the paper, VISTA substantially outperforms baselines across <strong>three additional benchmarks</strong> of visual games and puzzles. Coverage adds two striking data points: plugged into 3D scenes with perspective, it held at <strong>84.12</strong>; dropped into 34 web games (Mario, 2048, Minecraft-style tasks), GPT-5.6 Sol under VISTA hit a <strong>63.3% task success rate — directly beating human novices at 55.3%</strong>. And on a BabyVision connecting-the-dots puzzle, the model only got the answer right when VISTA let it zoom in — the static-image answer was wrong.</p>
+<p>There is also a delicious cross-system footnote. A separate August effort, Nvidia's AVO harness (same idea family — persistent memory, supervision), reportedly completed the same 183 public levels in <strong>6,624</strong> environment actions versus VISTA's 7,542 — about 12% fewer — though the comparison isn't a controlled ablation. The harness wars are now a leaderboard of their own.</p>
+<h3>The inverted-U: more is not better</h3>
+<p>The paper's most counterintuitive finding, per coverage: extending context from <strong>200K to 780K dropped the score from 99 to 93.9</strong>, and enlarging images 16× cut it to <strong>88.3</strong>. Past the sweet spot, more pixels and more context <em>hurt</em> — the model drowns in its own memory. That finding quietly kills a year of industry reflex ("just make the window bigger") and reframes the problem as memory <em>design</em>, not memory <em>size</em>.</p>
+<p><img alt="More is not better" src="assets/d4_more_isnt_better.png" /></p>
+<p><em>Caveat worth stating plainly: the paper's authors note their models postdate the public games, so the real generalization test is the private set. Scorecard entries cited above are on the ARC Prize public platform.</em></p>
+<hr />
+<h2>Takeaways</h2>
+<ol>
+<li><strong>The harness is a first-class research artifact.</strong> A four-sentence prompt and a screenshot pipeline moved the same model from 40.68 to a perfect 100. If you're benchmarking a model without controlling the harness, you're measuring the wrapper, not the weights.</li>
+<li><strong>Perception was the bottleneck, not reasoning.</strong> The industry spent two years scaling reasoning; the MIT team showed the models were already smart enough — they just couldn't see. Check your agent's observation format before you blame its brain.</li>
+<li><strong>Memory should be an archive, not a summary.</strong> VISTA's lossless frame store never degrades; rolling context windows do. The "flip back for free" rule is the design move everyone building long-horizon agents should steal.</li>
+<li><strong>Bigger context is not the answer.</strong> The inverted-U says memory design beats memory size. Stop feeding the model more; start letting it <em>look</em> better.</li>
+<li><strong>Notes beat code for rule discovery.</strong> 4,000 lines of Python versus three sentences. When the environment can't give you a simulator, a model that writes its own field notes wins.</li>
+</ol>
+<p><em>Numbers with "reported in early coverage" come from secondary reporting on the paper, not the paper text itself — treat the arXiv-verified figures (40.68→100.00, 25 games, 57.4%) as the solid core.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/vista_visual_memory.ipynb">vista_visual_memory.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
