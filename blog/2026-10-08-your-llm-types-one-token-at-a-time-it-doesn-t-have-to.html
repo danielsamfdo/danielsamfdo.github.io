@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your LLM Types One Token at a Time. It Doesn't Have To. | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Your LLM Types One Token at a Time. It Doesn't Have To.</h1>
+<div class="meta">2026-10-08 &middot; LLM systems / inference (speculative decoding)</div>
+<article class="post">
+<p>Every token your LLM emits costs one full forward pass through the entire model. Seventy billion parameters loaded from memory, multiplied, discarded — for a single token. Then again. And again. This is why the big models feel slow, and it's the single most expensive habit in production inference.</p>
+<p>Speculative decoding breaks the habit. Draft a handful of tokens with something cheap, verify them all in one pass of the big model, keep the ones that check out. Same output distribution — mathematically exact, zero quality loss — at 2–3x the speed. This is the closest thing inference has to a free lunch, and in 2026 it's becoming the default.</p>
+<h2>ELI5: guess the sentence, then check it once</h2>
+<p>Imagine you're taking a test and instead of writing one word, waiting for the teacher to grade it, writing the next word, waiting again — you write five words, hand them over once, and the teacher checks all five in one go. The words the teacher agrees with, you keep. The first word they reject, you fix on the spot.</p>
+<p>That's speculative decoding. A small, fast <strong>draft model</strong> (or even a lookup trick) proposes K tokens. The big <strong>target model</strong> checks all K in a single forward pass — because checking tokens in parallel is nearly free once the weights are already loaded. You accept the longest prefix the big model agrees with, fix the first disagreement, and move on.</p>
+<p>The magic is the acceptance rule. When the draft proposes token d, the target accepts it with probability min(1, q(d)/p(d)) — the ratio of how likely the <em>target</em> thinks d is versus how likely the <em>draft</em> thought it was. On rejection, you sample from what's left over. This is textbook rejection sampling, and it guarantees the final tokens come from the target model's distribution <strong>exactly</strong>. A bad draft doesn't corrupt your output — it just gets rejected more often, and you're back to normal speed. The worst case is no speedup. There is no wrong-answer case.</p>
+<h2>How it works: the two numbers that matter</h2>
+<p>Everything about speculative decoding reduces to two numbers:</p>
+<ul>
+<li><strong>α (alpha)</strong> — the acceptance rate: the fraction of drafted tokens the target accepts. This is the whole game.</li>
+<li><strong>N</strong> — the draft length: how many tokens you speculate per round.</li>
+</ul>
+<p>The expected tokens you bank per target forward pass is:</p>
+<p><strong>E[accepted] = (1 − α^(N+1)) / (1 − α)</strong></p>
+<p>Run the numbers. With α = 0.8 and N = 5, you expect ~3.4 tokens per pass instead of 1. Subtract the draft's own cost (a few percent of a target pass) and you're at roughly <strong>3x speedup</strong>. Push α to 0.95 with a great draft and N = 8, and you're flirting with 5x.</p>
+<p>So the entire field is really one quest: <strong>raise α</strong>. Every method below is a different answer to "how do I guess what the big model will say, more accurately, more cheaply?"</p>
+<p><img alt="Draft-verify pipeline" src="assets/d1_draft_verify.png" /></p>
+<p><img alt="Speedup vs acceptance rate" src="assets/d2_speedup_vs_alpha.png" /></p>
+<h2>SOTA: the draft-model arms race</h2>
+<p><strong>2023 — vanilla speculative decoding.</strong> A small model from the same family drafts (say, a 1B drafting for a 70B). α ≈ 0.6. Speedup around 2x at best. Simple, but the little model's guesses diverge from the big model's too often.</p>
+<p><strong>2024 — EAGLE.</strong> The insight: don't train a separate little model — train a tiny draft <em>head</em> (one or two transformer layers) that reads the target model's own last-layer hidden states and predicts the next token directly. Because the draft sees the target's internal representation, its distribution tracks the target far more closely. α jumps to 0.6–0.8. The EAGLE paper reports <strong>2.7–3.5x latency speedup</strong> on a 70B chat model.</p>
+<p><strong>2025 — EAGLE-3.</strong> Trains the draft head to predict further ahead and handle its own uncertainty better. NVIDIA's official docs put EAGLE-3 at <strong>2–3x over vanilla decoding</strong>. Third-party tests show it beating EAGLE-2 and Medusa-2 by 15–25% in tokens/sec at low batch sizes.</p>
+<p><strong>2026 — native multi-token prediction (MTP).</strong> The frontier moved into the models themselves: architectures shipping with built-in multi-token prediction heads (Gemma 4 MTP, DSpark, DFlash). No separate draft machinery — the model proposes its own futures. Measured: <strong>2.87x on MATH500</strong> for a 26B-active model with DFlash, <strong>2.68x</strong> for Kimi-K2.5, <strong>2.20x</strong> for a 122B-active model on native MTP.</p>
+<p><img alt="Speedup vs batch size" src="assets/d3_batch_decay.png" /></p>
+<p><img alt="Method comparison" src="assets/d4_methods.png" /></p>
+<h2>The production reality check</h2>
+<p>Papers report 2–4x. Production says: it depends. A 2026 systematic benchmark (five methods, four models, six workloads, on vLLM) found:</p>
+<ol>
+<li><strong>Speedups shrink with batch size.</strong> EAGLE hits ~1.96x on a 70B model at batch size 1 — but only ~1.21x at batch 128. At high concurrency the GPU is compute-saturated; there's no idle capacity left to spend on speculation.</li>
+<li><strong>Verification dominates.</strong> 42–95% of execution time is the target model's forward pass. The frontier is wasting less verification on tokens that get rejected.</li>
+<li><strong>No method wins everywhere.</strong> EAGLE-3 is the best all-rounder. Draft-model methods shine on 70B+ targets. Plain n-gram lookup wins code editing (2–4x — code repeats itself). Creative writing barely benefits (1.0–1.3x — nothing to guess from).</li>
+<li><strong>Headroom remains.</strong> An oracle combining strategies could theoretically hit ~4.9x on code editing; current implementations manage 2–3x.</li>
+</ol>
+<p>And the operational catch: in vLLM's 2026 builds, EAGLE-3 is <strong>opt-in</strong> — you set <code>speculative_config</code> explicitly or you get nothing. Teams that flip it on without measuring α on their real traffic have watched tail latency get <em>worse</em>, not better. Speculation is a bet, and the house edge is your acceptance rate.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>Decode is memory-bound, not compute-bound.</strong> Each token drags the full weights through HBM while the GPU's math units sit idle. Speculative decoding converts that idle compute into free tokens.</li>
+<li><strong>The output is exact.</strong> Rejection sampling guarantees the token distribution matches the target model bit-for-bit. This is an optimization, not an approximation — the rarest kind of free lunch.</li>
+<li><strong>α is the only metric that matters.</strong> Draft length, method choice, overhead — all downstream of acceptance rate. Measure α on <em>your</em> traffic before anything else.</li>
+<li><strong>Batch size is the enemy.</strong> Speculation pays when the GPU has spare capacity (low concurrency). At high batch, you're already saturated — save the complexity.</li>
+<li><strong>The draft is disappearing into the model.</strong> The arc from separate draft models → EAGLE heads → native MTP says the endgame is models that draft for themselves.</li>
+</ol>
+<p><em>Numbers marked as paper- or vendor-reported come from the cited papers and official docs; treat the EAGLE paper's 2.7–3.5x and NVIDIA's 2–3x as the solid core, and third-party benchmark figures as indicative.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/speculative_decoding.ipynb">speculative_decoding.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
