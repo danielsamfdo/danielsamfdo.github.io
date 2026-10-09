@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The 128-Vector Trick: Why Perplexity Stopped Squeezing Documents Into One Vector | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The 128-Vector Trick: Why Perplexity Stopped Squeezing Documents Into One Vector</h1>
+<div class="meta">2026-10-09 &middot; Recommendation systems / AI infrastructure (late-interaction retrieval — Perplexity pplx-embed-v2-late)</div>
+<article class="post">
+<p>On October 7, Perplexity dropped two embedding models on Hugging Face under an MIT license — and the size gap between them is the whole story. The small one, <code>pplx-embed-v2-late</code>, runs on 0.6 billion parameters and lives on edge hardware. The big one is 9 billion parameters and, paired with Gemini 3.5 Flash as the reader, scores <strong>92.4% on MADQA</strong>. Same embedding space, same index — and here's the trick nobody's talking about loudly enough: you build the index with the 9B model and <strong>query it with the 0.6B model</strong>, paying 0.6B query costs while recovering roughly half the 9B quality gap. Fifteen times fewer parameters per request, most of the quality intact.</p>
+<p>This is the late-interaction turn in retrieval. And it's the biggest architectural bet on search since dense embeddings killed BM25.</p>
+<h2>ELI5: stop summarizing, start remembering</h2>
+<p>Normal embeddings work like a librarian who reads every book and writes a one-paragraph summary on an index card. Your query gets summarized too, and you compare summaries. Fast, cheap — and lossy. The summary throws away where each fact lived, what it was next to, how it was phrased.</p>
+<p>Late interaction is a librarian with a photographic memory. She keeps every word of every book, each in its own slot. When you ask a question, she doesn't compare summaries — she takes each word of your question and hunts for its closest-matching word in each book, then adds up how good those best matches were. That sum is the MaxSim score:</p>
+<p><strong>MaxSim(query, doc) = Σ over each query token of (best doc-token match)</strong></p>
+<p>Nothing is averaged. Nothing is pre-summarized. The matching happens late — at query time, token by token — which is where "late interaction" gets its name. The cost: instead of one vector per document, you store <strong>one 128-dimensional vector per token</strong>. That's the trade, and the rest of this post is about whether it pays.</p>
+<p><img alt="Dense vs late interaction" src="assets/d1_single_vs_late.png" /></p>
+<h2>How it works: the three numbers that matter</h2>
+<p><strong>1. One vector per token, 128 dimensions each.</strong> Built on Qwen3.5 with bidirectional attention, each token of a document becomes a 128-dim vector. 128 is deliberately tiny — Perplexity notes it's 16–32x narrower than rival token vectors at 2,048–4,096 dimensions. Narrow dims keep the storage math survivable.</p>
+<p><strong>2. MaxSim scoring.</strong> Query tokens each take their max cosine similarity over all document tokens; sum them. This is why a PDF table cell containing the exact invoice number can beat a whole page of vaguely relevant prose: the strong per-token matches dominate, instead of being averaged into soup.</p>
+<p><strong>3. One shared embedding space across sizes.</strong> This is the genuinely new trick. Both models embed into the <em>same</em> 128-dim space, so a query encoded by the 0.6B model can be scored against an index built by the 9B model. The 0.6B is a distillation sibling, not a separate design — both were distilled from an internal 18B ColBERT teacher with a token-level LEAF-style objective (the 0.6B fully fine-tuned; for the 9B, the final 8 transformer layers were fully fine-tuned while the rest got LoRA).</p>
+<p>Multimodality comes free in the same space: text, images, and rendered PDF pages are all embedded as token sequences — <strong>no OCR, no chunking pipeline</strong>. A table in a PDF is kept as an image with its layout intact, not mangled by text extraction.</p>
+<p><img alt="Build with 9B, query with 0.6B" src="assets/d2_shared_space.png" /></p>
+<p>The economics are the point. Query-side encoding is what you pay for <em>on every request</em>; index-building is what you pay for <em>once</em>. Splitting the two means your serving fleet runs a model small enough for edge hardware — 594M total parameters, 240M for text — while your index carries 9B-quality signal. It's the same logic as speculative decoding from yesterday's post: spend the big model's budget where it's cheapest, the small model's where it matters.</p>
+<h2>SOTA: where this lands in October 2026</h2>
+<p><strong>The benchmark line (all Perplexity-reported, no independent verification yet, no technical report):</strong></p>
+<ul>
+<li><strong>MADQA — 92.4%</strong> with the 9B model + Gemini 3.5 Flash. MADQA is 500 questions over ~18,000 PDF pages — multi-page, document-heavy QA. The 0.6B model hits 90.1% in the same setup, vs 88.9% for the Mixedbread retriever. So the 0.6B is only 2.3 points behind its 15x-bigger sibling on the headline test.</li>
+<li><strong>Q2D-Web — 74.8% Recall@1000</strong> across ~190 million documents. This is the web-scale test, and it's arguably the more important number than MADQA.</li>
+<li><strong>BrowseComp+ — 64.0%</strong> paired with GPT-OSS-120B, 4.9 points ahead of competing ColBERT models (per AlphaSignal's writeup).</li>
+</ul>
+<p><strong>The weak spots — and Perplexity's own cards admit them:</strong></p>
+<ul>
+<li><strong>ViDoRe v3 image retrieval — 65.2%</strong>, markdown — 61.2%. "Retrieves text, images, and PDFs" does not mean uniformly strong. Tencent's EVIE scores higher on image retrieval. If your corpus is markdown-rendered docs, benchmark before you believe the headline.</li>
+<li><strong>No mixed text+image input</strong> in a single query. One modality per input — a real limitation for "find the chart that shows X" workflows.</li>
+<li><strong>One vector per token is a storage bill.</strong> The math: a 1,000-token document costs 250 KB at fp16 vs 16 KB for a dense 4096-dim vector. Int8 halves it. The 128-dim choice is doing real work here — at 4,096 dims, late interaction would be dead on arrival.</li>
+</ul>
+<p><img alt="Benchmark scores" src="assets/d3_benchmarks.png" /></p>
+<p><img alt="Storage tradeoff" src="assets/d4_storage_math.png" /></p>
+<p><strong>Context of the week:</strong> this landed one day after Google's EmbeddingGemma 2 — a 740M open <em>dense</em> multimodal embedder aimed at on-device use. The two releases frame the fork clearly: Google is betting small-and-dense for the edge, Perplexity is betting small-and-<em>fine-grained</em>, with the shared-space trick as the bridge to big-model quality. The right bet depends on whether your queries need token-level precision (invoice numbers, legal clauses, code) or just semantic nearness.</p>
+<h2>The production reality check</h2>
+<ol>
+<li><strong>Cross-model querying is the killer feature, not MADQA.</strong> The headline 92.4% is nice; the ability to run a 594M-parameter query encoder against a 9B-quality index is what changes serving budgets. If your retrieval traffic is the expensive part, this is the number to model.</li>
+<li><strong>The OCR-free pitch is real but bounded.</strong> Native image/PDF embedding preserves tables and layouts that text-extraction pipelines corrupt — genuinely valuable. But the ViDoRe numbers say the vision side is still the weaker half. Verify on your own documents.</li>
+<li><strong>Distillation lineage matters.</strong> An 18B teacher with a token-level objective, LoRA on most of the 9B — this is a carefully distilled family, not two independent models. That's <em>why</em> the shared space works. Don't expect to mix-and-match arbitrary small/large embedders and get the same effect.</li>
+<li><strong>Storage is the new latency.</strong> Late interaction moves the cost from compute to storage. At 250 KB per 1k-token doc, a 190M-document index is ~47 TB at fp16 before quantization. Fine for a hyperscaler; a budget line for everyone else.</li>
+<li><strong>MIT license, self-host only (for now).</strong> No hosted API yet — sentence-transformers ≥ 6.0.0, transformers ≥ 5.4.0, CUDA confirmed. A hosted endpoint is planned. If you want this behind an API, you're waiting or self-hosting.</li>
+</ol>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>Late interaction beats single vectors where precision matters.</strong> One vector per token + MaxSim means the best-matching fact wins instead of being averaged away. Mean pooling is the enemy of exactness.</li>
+<li><strong>Build with the big model, serve with the small one.</strong> The shared embedding space splits the one-time index cost from the per-request query cost. 15x cheaper queries, ~half the quality gap recovered.</li>
+<li><strong>128 dimensions is a design decision, not a spec.</strong> Narrow token vectors are what make per-token storage affordable. The dimensionality is the product decision.</li>
+<li><strong>Multimodal retrieval without OCR is here — mostly.</strong> PDF tables and layouts survive natively, but vision retrieval still trails; Tencent EVIE and the ViDoRe weak spots are the honest footnotes.</li>
+<li><strong>This is infrastructure for agents.</strong> Every agentic loop that grounds itself in documents — RAG, tool-use over PDFs, research agents — gets better the moment retrieval stops summarizing and starts remembering.</li>
+</ol>
+<p><em>All benchmark figures are Perplexity self-reported (announced Oct 7, 2026 via the company blog and forum); the technical report is not yet published and no independent verification exists at the time of writing. Treat the 92.4% MADQA headline as a signal, and the shared-space / storage math as the substance.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/late_interaction_retrieval.ipynb">late_interaction_retrieval.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
