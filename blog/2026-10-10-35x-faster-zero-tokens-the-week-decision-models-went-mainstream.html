@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>35x Faster, Zero Tokens: The Week Decision Models Went Mainstream | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>35x Faster, Zero Tokens: The Week Decision Models Went Mainstream</h1>
+<div class="meta">2026-10-10 &middot; Tech news / ML architectures (decision models wave — OpenAI Decisions API + Microsoft Decision-1)</div>
+<article class="post">
+<p>On September 15, TypeSafe AI came out of stealth with Jev — a model that never generates a single token. It only returns typed decisions: a probability, a choice, a score. Three weeks later, the two biggest sellers of chatbot sentences walked the same path. On October 6, OpenAI shipped the <strong>Decisions API</strong> in public beta. On October 9, Satya Nadella announced <strong>Microsoft Decision-1</strong>, claiming it makes decisions <strong>35 times faster</strong> than GPT-6 Sol. A startup said software doesn't want sentences — it wants values it can branch on. This week, the industry's two biggest players agreed.</p>
+<p>(Sequel to the September 24 post, "The Model That Doesn't Talk," which covered Jev's launch and its calibration-first training.)</p>
+<h2>ELI5: the stamp, now sold by the big hospitals</h2>
+<p>A chatbot is a brilliant doctor who answers every yes/no question with a ten-page essay. You read the essay, find the answer, and copy it into your spreadsheet.</p>
+<p>A decision model is the triage nurse who stamps your form: <strong>"urgent: 92%."</strong> The stamp is the whole product.</p>
+<p>What's new this week is who sells stamps now. When a startup does it, it's a thesis. When OpenAI builds <code>POST /v1/decisions</code> and Microsoft post-trains a whole model around it, it's a category — and every workflow you've been running through "prompt the LLM, parse the JSON with a regex" is now legacy code.</p>
+<p><img alt="Latency comparison" src="assets/1_latency_ladder.png" /></p>
+<h2>How it works: one pass, no talking</h2>
+<p>An LLM is autoregressive: token, full model pass, token, full model pass. A 50-token JSON answer is 50 sequential passes through the weights — and then you regex-parse the text back into the decision you wanted in the first place.</p>
+<p>A decision model replaces the language-model head with a <strong>decision head</strong> and evaluates everything in <strong>one parallel pass</strong>. No tokens generated, no tokens billed, nothing to parse. The outputs are typed up front:</p>
+<ul>
+<li><strong>Predicate:</strong> a probability from 0 to 1 that a condition holds.</li>
+<li><strong>Choice:</strong> one of the fixed options you supplied, with a probability per option.</li>
+<li><strong>Score:</strong> a weighted position across ordered severity levels.</li>
+</ul>
+<p>OpenAI's version takes text (or base64-only images — hosted URLs are refused) plus a list of questions, and returns the answers "about 10x faster than the Responses API," at <strong>$0.10 per million input tokens and $0 for output</strong>. Independent developers measured a 230ms median with 76 of 78 answers correct on a structured task replay. Microsoft's Decision-1 is post-trained on <strong>Alibaba's Qwen3.5-9B</strong> for fast, single-pass decision scoring — yes/no questions, multiple-choice, ratings, and grading AI-generated responses against predefined criteria — and Microsoft says it topped <strong>36 benchmarks</strong> across accuracy and speed. It's already being tested across Microsoft, including incident response.</p>
+<p><img alt="Schematic" src="assets/2_talk_vs_decide.png" /></p>
+<h2>The state of the art: three players, one category</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>TypeSafe Jev 1.13</th>
+<th>OpenAI Decisions API</th>
+<th>Microsoft Decision-1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Status</td>
+<td>GA (via Vercel AI Gateway)</td>
+<td>Public beta (Oct 6), GA "coming weeks"</td>
+<td>Announced Oct 9</td>
+</tr>
+<tr>
+<td>Input</td>
+<td>Text + structured state</td>
+<td>Text + images (inline base64)</td>
+<td>Text + images</td>
+</tr>
+<tr>
+<td>Latency</td>
+<td>70–500ms</td>
+<td>~150ms claimed / 230ms independent median</td>
+<td>35x faster than GPT-6 Sol (claimed)</td>
+</tr>
+<tr>
+<td>Price</td>
+<td>$0.042/1M input tokens</td>
+<td>$0.10/1M input, <strong>$0 output</strong></td>
+<td>Not disclosed</td>
+</tr>
+<tr>
+<td>Max options</td>
+<td>255 per question</td>
+<td>Not disclosed</td>
+<td>n/a</td>
+</tr>
+</tbody>
+</table>
+<p>On cost for the canonical workload — 1M classifications of 500 tokens each — Jev lands around <strong>$21</strong>, the Decisions API at <strong>$50</strong>, and GPT-6 Luna through the Responses API near <strong>$60</strong> ($50 in, ~$10 for 20 output tokens per decision). The cost win is mechanical: no output tokens exist to bill.</p>
+<p><img alt="Cost comparison" src="assets/3_cost_1m_decisions.png" /></p>
+<h2>Fine print, because vendor numbers are vendor numbers</h2>
+<ul>
+<li><strong>Neither OpenAI nor Microsoft has published head-to-head accuracy</strong> against the same model called through the Responses API. Speed is claimed with numbers; accuracy isn't. The cost chart above is cost-only — treat speed and accuracy as separate fights.</li>
+<li><strong>Chained decisions are separate requests.</strong> OpenAI's docs say a decision that depends on an earlier answer needs a second request. Five dependent steps at a 230ms median is 1.15 seconds — design decision graphs shallow.</li>
+<li><strong>The score type can land between levels.</strong> OpenAI's own worked example turns probabilities of 0.1, 0.7, and 0.2 across three severity levels into a score of <strong>1.1</strong> — a number that corresponds to no level. Know your type system before you threshold it.</li>
+<li><strong>At launch, <code>/v1/decisions</code> wasn't in Luna's own docs.</strong> The model's 18-row endpoint support table listed Chat Completions, Responses, and Batch — but not the new endpoint. Beta roughness, but check before you build.</li>
+</ul>
+<p><img alt="Timeline" src="assets/4_wave_timeline.png" /></p>
+<h2>The moat question</h2>
+<p>Hacker News split predictably. Half argued OpenAI <strong>validated the category</strong> — and validation is worth more to Jev than two weeks of exclusivity. The other half argued <strong>the moat never existed</strong>: if OpenAI can ship this two weeks after a startup, so can anyone. Both camps are right, which is the uncomfortable truth about developer tooling.</p>
+<p>The honest scorecard: Jev keeps general availability, the lowest price ($21 vs $50 per million decisions), and calibration-first training — the confidence number as the product. OpenAI keeps images, the SDK you already have, and measured-faster head-to-heads (230ms vs 500ms median; 76/78 vs 73/78 correct). Microsoft brings the self-hostable angle: a decision model post-trained on an open-weight base, not a closed API.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>The chatbot-for-classification is legacy.</strong> If your pipeline ends in a regex, you're paying for sentences you throw away.</li>
+<li><strong>The latency and cost wins are mechanical, not marketing.</strong> No tokens out means nothing to bill and nothing to parse.</li>
+<li><strong>Calibration and chaining are still on you.</strong> Thresholds need labeled history — build that set before you automate. Keep decision graphs shallow.</li>
+<li><strong>Watch the GA pricing.</strong> OpenAI's beta price is input-only and unconfirmed for general availability. Jev's edge today is price and calibration; OpenAI's is speed and distribution; Microsoft's is open-weight self-hosting.</li>
+</ol>
+<p>Sources: <a href="https://cellcog.ai/blog/openai-decisions-api/">OpenAI Decisions API pricing/comparison</a> · <a href="https://www.marktechpost.com/2026/10/09/openai-decisions-api-hits-public-beta-with-10x-faster-typed-answers/">MarkTechPost beta coverage</a> · <a href="https://byteiota.com/openai-decisions-api-150ms-classification-agents/">150ms classification benchmark</a> · <a href="https://www.neowin.net/news/microsofts-new-decision-1-ai-model-is-35-times-faster-than-gpt-6-sol-in-decision-making/">Microsoft Decision-1 announcement</a></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/decision_model_wave.ipynb">decision_model_wave.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
