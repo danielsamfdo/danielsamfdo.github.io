@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passed Once, Failed 19 Times: The Reliability Gap Microsoft's ThinkingBox Found in Every Agent | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Passed Once, Failed 19 Times: The Reliability Gap Microsoft's ThinkingBox Found in Every Agent</h1>
+<div class="meta">2026-10-11 &middot; Agents / benchmarks (ThinkingBox agent reliability — Microsoft + Hugging Face)</div>
+<article class="post">
+<p>Your coding agent just demoed beautifully. It refactored the module, updated the tests, and wrote a tidy summary. One problem: the demo was <em>one</em> run. This week, Microsoft researchers and Hugging Face published the October results of <strong>ThinkingBox</strong>, a benchmark that ran 507 real business-workflow tasks <strong>20 times each</strong> — and found that the best agents in the world pass all 20 attempts on barely half of them.</p>
+<p>The headline numbers: <strong>121,680 trials. 79,853 failures. Claude Opus 5.5 — the leader — passes 20-of-20 on just 241 of 507 tasks (47.53%).</strong> And 67.24% of the failed trials ended with no tool error at all. In your dashboard, they looked like success.</p>
+<p>The benchmark's thesis, per the Hugging Face write-up, fits on one line: <strong>"A trajectory is a claim. Database state is the evidence."</strong> ThinkingBox grades what the agent actually changed in a backend database — not what it said it changed. This post is about why that one design choice makes it the most practical agent evaluation of the year.</p>
+<h2>ELI5: grade the homework, not the excuse</h2>
+<p>Imagine two students. The first hands in perfect homework. The second hands in a beautiful note explaining why the homework is done. Most agent benchmarks grade something close to the second option: they read the agent's chat transcript and ask "does this look right?" or check "did it call the expected tools?"</p>
+<p>Those are proxies, and proxies lie. An agent can say "I've updated your reservation" after writing the wrong date. It can call the correct refund tool with the wrong amount. It can touch a second customer record it was never supposed to open.</p>
+<p>ThinkingBox ignores the transcript entirely. Before the agent starts, it snapshots a backend database. The agent works through its tools. After the agent stops, deterministic judges diff the final database against a required end state — and check for <strong>forbidden side effects</strong>: rows that were supposed to stay untouched. The transcript never enters the verdict. The paper's title (arXiv 2608.19741) is the whole argument: <em>"One Success Isn't Reliability."</em></p>
+<p><img alt="Capability vs dependability" src="assets/d1_capability_vs_reliability.png" /></p>
+<h2>How it works: 507 tasks, 20 fresh backends each</h2>
+<p>The setup is deliberately simple to reason about:</p>
+<ol>
+<li><strong>507 business workflows</strong> across retail, travel and hospitality, auto insurance, neobank IT, and consulting IT/HR — modifying orders, filing insurance claims, rebooking travel, resolving IT tickets.</li>
+<li><strong>Tools exposed as MCP servers</strong>, so any agent speaking the Model Context Protocol can plug in.</li>
+<li><strong>Every run gets an isolated, freshly reset backend.</strong> Attempt 7 cannot be contaminated by attempt 6.</li>
+<li><strong>Deterministic judges</strong> compare the terminal database against the required end state and scan for side effects. No LLM grader, no vibes.</li>
+<li>
+<p><strong>Each task is repeated 20 times</strong>, reported three ways:</p>
+</li>
+<li>
+<p><strong>pass@1</strong> — share of single attempts that succeed. First-try quality.</p>
+</li>
+<li><strong>pass@20</strong> — tasks solved at least once in 20 tries. The capability ceiling: what the model can do on a good day.</li>
+<li><strong>observed 20-of-20</strong> — tasks that pass every recorded attempt. Dependability: what you can promise a customer.</li>
+</ol>
+<p>Reporting all three is the real contribution. Most leaderboards report something like pass@1 and let you imagine the rest. ThinkingBox exposes the gap between "can do" and "reliably does" — and the gap is where the failures live.</p>
+<p><img alt="The three metrics" src="assets/d3_three_metrics.png" /></p>
+<h2>SOTA: what 121,680 trials say about today's models</h2>
+<p><strong>The reliability collapse is real and steep.</strong> Claude Opus 5 falls from <strong>66.50% pass@1 to 47.53% 20-of-20</strong> as the bar moves from one attempt to twenty. Kimi-K3 falls from <strong>57.37% to 17.60%</strong>. The Hugging Face post adds the most damning version of the Kimi number: the model solves <strong>93.89% of tasks at least once</strong> but is dependable on only <strong>13.41%</strong>. A model that can <em>eventually</em> solve nearly everything is dependable on a small fraction. (Exact decimals differ slightly between the paper abstract and the HF post — read the paper's tables before quoting a specific cell; the direction is identical everywhere.)</p>
+<p><strong>The failure anatomy is actionable.</strong> Among the 79,853 failed trials: roughly <strong>77.6% had wrong field values</strong>, <strong>43% created unintended side effects</strong>, and <strong>25% missed required changes</strong> — these overlap, since one trial can fail several ways. By root cause: <strong>79.9% traced to tool handling</strong>, 10.3% to wrong updates, 7.0% to incomplete resolution, 2.9% to no action at all. Tool handling dominates — the agent picked the wrong tool, misread the schema, or fumbled the parameters. If you build agents, this is your biggest bucket, and it says the tool <em>surface design</em> matters as much as the model.</p>
+<p><img alt="Failure anatomy" src="assets/d2_failure_anatomy.png" /></p>
+<p><strong>The silent failures are the scary class.</strong> 67.24% of failed attempts ended with <strong>no final tool error</strong>. The agent didn't crash, didn't loop, didn't hit a rate limit. It produced a confident summary after valid state-changing actions. Your production monitoring — the kind that watches for errors and timeouts — would have marked these as success. You find out later: from the customer, the auditor, or the reconciliation job.</p>
+<p><strong>Domain matters enormously.</strong> Retail averages <strong>59.52% pass@1</strong>; auto insurance averages <strong>33.83%</strong>. Insurance workflows carry more policy rules and more fields that must be exactly right — which is precisely the kind of task a business will actually automate.</p>
+<p><strong>Sticker price is not the price.</strong> The post estimates cost per <em>dependable</em> task: about <strong>$6.80 for GPT-5.4, $7.45 for GPT-6 Astra, $7.80 for Claude Opus 5.5</strong>. A cheaper model that needs more attempts — or more human cleanup — costs more per finished task. Budget for verification, because per-token price and per-reliable-outcome price are different things.</p>
+<p><img alt="Cost and domains" src="assets/d4_cost_and_domains.png" /></p>
+<p><strong>Honest caveats:</strong> the 507 workflows are well-designed but synthetic stand-ins for your systems; all results come from one agent harness, so treat model rankings as a snapshot, not a universal ordering; and the judges are only as good as the end states someone wrote — sample failures by hand before trusting any aggregate. The framework is MIT-licensed on GitHub (<code>microsoft/thinkingbox</code>) with the dataset (<code>microsoft/ThinkingBox-Bench</code>) on Hugging Face — the authors want you to steal the method, not just read the leaderboard.</p>
+<h2>The production reality check</h2>
+<ol>
+<li><strong>Measure observed all-runs-pass, not pass@1.</strong> If a workflow must succeed every time — refunds, bookings, claim payouts — the benchmark says pass@1 systematically overstates what you can promise. Run each eval task 10–20 times and report the full distribution.</li>
+<li><strong>Grade the database, not the chat.</strong> Write the required end state first: exact rows and fields that must change, rows that must not. Snapshot before and after, diff the data, assert unrelated records are unchanged. A minimal version needs no ThinkingBox — just a fixture, a diff, and discipline.</li>
+<li><strong>Fix tool handling first.</strong> At 79.9% of root causes, the tool surface — schemas, descriptions, parameter naming — is the highest-leverage fix in the stack. It echoes the harness lesson from earlier in this series: the harness, not the model, decides what the agent can do.</li>
+<li><strong>Instrument for silent wrong writes.</strong> Error-rate dashboards miss 67% of failures. Reconciliation checks — deterministic judges on final state — belong in production monitoring for any agent with write access.</li>
+<li><strong>Price per verified task, not per token.</strong> The $6.80/$7.45/$7.80 figures make the point: a cheaper model's invoice can be larger once retries and cleanup are counted. Model your eval harness cost with the verification loop included.</li>
+</ol>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>One success is not reliability.</strong> Capability (pass@20: 93.9% for Kimi-K3) and dependability (20-of-20: 13.4%) are different numbers, and the second is the one your customers feel.</li>
+<li><strong>The trajectory is a claim; the database is the evidence.</strong> Grading transcripts or tool-call lists is a proxy; diffing final state against a required end state removes the proxy.</li>
+<li><strong>Two-thirds of failures are silent.</strong> No crash, no error, no timeout — just a wrong write wearing a confident summary. Only state checks catch them.</li>
+<li><strong>Tool design beats model choice for reliability.</strong> 79.9% of root causes are tool handling. Sharpen the tool surface before swapping the model.</li>
+<li><strong>This is a template, not just a leaderboard.</strong> The environment, tasks, and judges are open — steal the method for your own workflows, whatever your domain.</li>
+</ol>
+<p><em>All figures are from the Microsoft/Hugging Face ThinkingBox October results as summarized in the arXiv paper (2608.19741) and the Hugging Face write-up, via the October 2026 coverage. Minor decimals differ between the paper abstract and the blog post (run configuration/version naming) — direction and magnitudes are consistent across sources.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/thinkingbox_reliability.ipynb">thinkingbox_reliability.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
