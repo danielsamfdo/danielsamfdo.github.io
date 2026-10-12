@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18B Awake, $0.045 a Task: The Cheap Model That Beat Claude on the Agentic Loop | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>18B Awake, $0.045 a Task: The Cheap Model That Beat Claude on the Agentic Loop</h1>
+<div class="meta">2026-10-12 &middot; Tech news / ML architectures / agents (GLM-5.3-Flash cost-collapse)</div>
+<article class="post">
+<p>A model with 320 billion parameters just scored <strong>48.8 on AutomationBench — ahead of Claude Opus 4.8 (41.0) and GPT-5.6 Terra (37.2)</strong> — while costing <strong>one-tenth</strong> of its flagship sibling's price. Z.ai's GLM-5.3-Flash is the strongest single datapoint yet for the cost-collapse thesis: frontier-class intelligence on the Artificial Analysis Intelligence Index (score 57) at <strong>$0.045 per task</strong>, a level that previously cost roughly 10x as much. The secret isn't smaller. It's a different attention architecture: the first open frontier model to fuse <strong>sparse and linear attention</strong> in one hybrid system.</p>
+<h2>ELI5: two jobs, two attention types</h2>
+<p>Standard transformer attention is democratic and expensive: every new token compares itself against <strong>every</strong> past token. That's O(n²) work — at a million tokens, over a trillion comparisons per layer.</p>
+<p>Flash splits the job the way a good assistant works:</p>
+<ul>
+<li><strong>Linear attention (the "recent memory" path):</strong> the last tokens flow through a recurrent state that updates token by token — O(n) work. Cheap, local, always on.</li>
+<li><strong>Sparse attention (the "global recall" path):</strong> a lightweight indexer reaches back across the full context and pulls only the relevant distant pieces.</li>
+</ul>
+<p>Plus a trick called <strong>IndexPool</strong>: the indexer's key vectors get weighted-pooled <strong>4 into 1</strong>, so even the retrieval machinery stays small at a million tokens.</p>
+<p><img alt="Hybrid attention schematic" src="assets/d2_hybrid_attention.png" /></p>
+<p>The MoE side does the same kind of ruthless economizing: 320B total parameters, only <strong>18B awake per token (5.6%)</strong>, routed through <strong>8 of 288 experts</strong>, in <strong>45 layers</strong> — half the layers and roughly half the active parameters of GLM-4.5 at similar total size. Pretraining ran on a <strong>30-trillion-token multimodal corpus</strong>, making Flash the first natively multimodal GLM-5 (text, images, video, files).</p>
+<p><img alt="Cost collapse" src="assets/d1_cost_collapse.png" /></p>
+<h2>How it works: the architecture stack</h2>
+<p>Per the vLLM recipe and Z.ai's documentation, the 45-layer model <strong>interleaves KDA linear-attention layers with NoPE sparse MLA layers</strong>:</p>
+<ol>
+<li><strong>Linear path</strong> captures local dependencies through a recursive mechanism — the running state never grows with sequence length.</li>
+<li><strong>Sparse path</strong> uses a lightweight indexer to recall global context on demand instead of attending to everything.</li>
+<li><strong>IndexPool</strong> compresses groups of indexer key vectors 4→1 via weighted pooling, cutting the indexer's latency and memory at 1M context.</li>
+<li><strong>mHC (Manifold-Constrained Hyper-Connections)</strong> — 4-wide hyper-connections that Z.ai says improve scaling efficiency.</li>
+<li><strong>Native FP8 weights</strong> plus <strong>one MTP draft layer</strong> (multi-token prediction for cheaper speculative decoding).</li>
+</ol>
+<p>The payoff, per Z.ai: <strong>3.0× less attention compute</strong> and a <strong>4.4× smaller KV cache</strong> than the full GLM-5.3 — which is what makes the 1M-token context window (prompt + output ≤ 1,048,576) economically servable at all. Serving is its own story: Z.ai runs Flash at scale on <strong>domestic Chinese AI chips</strong> with a dedicated inference engine built on SGLang, claiming a <strong>3× end-to-end serving gain</strong> comparable to mainstream NVIDIA GPUs.</p>
+<p><img alt="Attention compute and KV cache" src="assets/d4_long_context_cost.png" /></p>
+<h2>SOTA: where the cheap model wins — and where it doesn't</h2>
+<p><strong>The agentic loop is the headline.</strong> AutomationBench measures real workflow automation — the multi-step tool-use loop a production agent actually runs. Flash's 48.8 doesn't just approach the frontier there; it <strong>beats</strong> Opus 4.8 by 7.8 points (a 19% relative lead) and roughly doubles its own predecessor GLM-5.2 (26.2). It also reports <strong>78.4 on Toolathlon Verified</strong> and <strong>62.4 on OfficeQA Pro</strong>, ahead of Opus 4.8.</p>
+<p><strong>Elsewhere it's a near-match.</strong> Terminal-Bench 2.1: <strong>84.3</strong>, within 0.7 points of Opus 4.8 (85.0) and 3.1 of GPT-5.6 Terra (87.4). DeepSWE v1.1: <strong>63.4</strong>, up 17.2 points over GLM-5.2's 46.2. HLE: 55.3. Artificial Analysis measures <strong>48.7 output tokens/sec with 1.52s time-to-first-token</strong> — fast, but verbose.</p>
+<p><img alt="Benchmark comparison" src="assets/d3_benchmarks.png" /></p>
+<p><strong>Honest caveats, because the numbers come with footnotes.</strong> Nearly all comparisons are <strong>Z.ai-reported with per-benchmark harness differences</strong> — the model card's own footnotes specify temperature, context limits, and judge models per test, so treat cross-model gaps as direction, not gospel. Two weak flanks: <strong>vision trails</strong> (BabyVision and MVbench lag Gemini 3.7 Flash), and the weights are <strong>MIT-promised, not yet shipped</strong> — the model is open-weight in roadmap, API-only today. Reasoning is <strong>always on</strong> (low/high/max effort, cannot be disabled). And the adversarial angle: an independent lab analysis verified the cyber-capability claims beyond vendor self-report — including one Flash-specific exploit chain that cost <strong>$20.40</strong> to build. Cheap intelligence is dual-use intelligence.</p>
+<h2>The takeaway</h2>
+<p>The 2026 story in open models isn't just "bigger and cheaper" — it's <strong>architecturally cheaper</strong>. Flash didn't win by distilling a bigger model or cutting corners; it won by redesigning the attention layer so that long context stops being the expensive part. 3.0× less attention compute, 4.4× less KV cache, 10× the price efficiency — those are architecture wins, and they compound: every agentic loop that runs 20 tool calls on a 1M-token context gets cheaper at the same time.</p>
+<p>Three things to do with this: (1) if you route agents by cost, <strong>re-run your price-performance ranking</strong> — a $0.15/$0.50 model (cached input $0.029) that wins AutomationBench breaks any tier list from six months ago; (2) if you serve long context, the hybrid linear+sparse pattern is the template to watch — it's the first open-frontier proof that it holds at scale; (3) <strong>budget for the caveat class</strong> — vendor-reported benchmarks, weak vision, and weights that haven't shipped yet mean you eval before you commit.</p>
+<p>The frontier used to be a price. Now it's a $0.045 task.</p>
+<p><em>Sources: Z.ai launch post (z.ai/blog/glm-5.3-flash); MarkTechPost coverage; Artificial Analysis Intelligence Index v4.1.1; Fireworks/LM Studio model docs. All benchmark figures are vendor-reported unless noted; cross-harness comparisons carry setup caveats.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/glm53_flash_cost_collapse.ipynb">glm53_flash_cost_collapse.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
