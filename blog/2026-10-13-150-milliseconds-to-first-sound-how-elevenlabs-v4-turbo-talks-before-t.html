@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>150 Milliseconds to First Sound: How ElevenLabs' v4 Turbo Talks Before the Sentence Ends | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>150 Milliseconds to First Sound: How ElevenLabs' v4 Turbo Talks Before the Sentence Ends</h1>
+<div class="meta">2026-10-13 &middot; GenAI (voice synthesis / TTS — ElevenLabs Eleven v4 + v4 Turbo)</div>
+<article class="post">
+<p><em>How a text-to-speech model learned to read stage directions, hold one voice across a whole audiobook, and start speaking before the LLM finishes the sentence.</em></p>
+<h2>The problem nobody hears</h2>
+<p>Talk to a voice agent and you'll notice the pause. You finish your sentence. Silence. Then the answer begins — slightly too late to feel like conversation. That gap isn't the LLM thinking. It's the assembly line: your speech gets transcribed, the LLM writes the full answer, and only <em>then</em> does the voice model read it aloud. Three stages, one queue. ElevenLabs' new <strong>Eleven v4</strong> (quality-first) and <strong>v4 Turbo</strong> (speed-first), launched September 28, 2026, attack that pipeline from both ends — and the Turbo variant's headline number is worth staring at: <strong>~150 ms median time-to-first-speech</strong> in the company's own WebSocket benchmark, down in the range where a pause stops feeling like a queue and starts feeling like a human gathering their thoughts.</p>
+<h2>ELI5: how a modern voice model works</h2>
+<p>A text-to-speech model has three jobs, like a tiny theater company:</p>
+<ol>
+<li><strong>Pronunciation</strong> — the phoneme planner: turn letters into sounds. ("Read" is <em>reed</em> here, <em>red</em> there — context matters.)</li>
+<li><strong>Prosody</strong> — the director: decide tone, pacing, pauses, emphasis. Same sentence whispered vs. shouted is all prosody.</li>
+<li><strong>Voice identity</strong> — the actor: a compact "voice embedding" learned from a short audio sample. Give it 10 seconds of your voice and it builds your vocal fingerprint.</li>
+</ol>
+<p>Older models read like an understudy doing cold reads: one line at a time, flat delivery, voice drifting by chapter three of an audiobook. Eleven v4's new architecture is built around <em>context</em>: it reads the whole script — who is speaking, what just happened, how each line should land — and keeps the speaker's identity stitched together across long text. It even understands <strong>inline stage directions</strong>: type <code>[softly] I'm not angry, [laughter] I just think it's funny</code> and the model follows the tags in sequence, stacking them within a single line. That's the leap from "text reader" to "voice actor."</p>
+<h2>The two models: quality vs. latency</h2>
+<p>ElevenLabs shipped two variants on the same research, aimed at two different jobs:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Eleven v4</strong></th>
+<th><strong>Eleven v4 Turbo</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Built for</td>
+<td>Audiobooks, dubbing, character performance, ads</td>
+<td>Voice agents, live calls, realtime assistants</td>
+</tr>
+<tr>
+<td>Latency</td>
+<td>Quality-first</td>
+<td>~100 ms median inference, ~150 ms time-to-first-speech (vendor-measured, streaming)</td>
+</tr>
+<tr>
+<td>Streaming</td>
+<td>REST + streaming endpoints</td>
+<td>Bidirectional: audio starts before the sentence finishes</td>
+</tr>
+<tr>
+<td>Languages</td>
+<td>90+ (up from 70 in v3)</td>
+<td>Same</td>
+</tr>
+<tr>
+<td>Cloning</td>
+<td>10-second Instant Voice Clone; Professional Voice Clone support restored after v3 dropped it</td>
+<td>Same</td>
+</tr>
+</tbody>
+</table>
+<p>The biggest reported quality jumps are in <strong>Japanese, Brazilian Portuguese, Mandarin, and Cantonese</strong> — the languages where previous models struggled most. The company also claims the <strong>#1 rank on the Artificial Analysis Speech Arena</strong> at launch, including the benchmark's highest pronunciation-robustness score yet. (Caveat: that's a third-party evaluator, not independent reproduction — still the best apples-to-apples number the industry has.)</p>
+<p><img alt="Voice-agent turn latency budget" src="assets/latency_budget.png" /></p>
+<h2>How Turbo hits 150 ms: stream, don't queue</h2>
+<p>The diagram above shows a typical voice-agent turn budget: endpoint detection (~180 ms) + streaming ASR (~220 ms) + LLM first token (~650 ms) + TTS first chunk + network. Turbo's whole job is keeping the green bar small, and the trick is architectural, not magic: <strong>overlap synthesis with generation</strong>.</p>
+<p><img alt="Batch vs streaming TTS timeline" src="assets/streaming_vs_batch.png" /></p>
+<p>A batch TTS model waits for the LLM to finish the entire sentence, then synthesizes — time-to-first-audio grows with sentence length. Turbo streams tokens in and audio chunks out, so the first sound lands a fraction of a second after generation starts, <em>regardless of how long the answer is</em>. My simulation (see the companion notebook) shows the gap widening with sentence length: ~3.5x faster at 20 tokens, ~14x at 80. Bidirectional streaming means the model doesn't even need the sentence boundary — audio generation begins mid-thought.</p>
+<p>Two more pieces matter for production:</p>
+<ul>
+<li><strong>Context stitching for long form.</strong> v4's architecture keeps voice identity consistent across regenerated lines — swap one sentence in chapter 12 and the new line still sounds like chapter 12's narrator. That kills the biggest audiobook-editing headache.</li>
+<li><strong>Multi-speaker overlap.</strong> Dialogue gets the timing and reactive energy of real conversation — speakers interrupting, reacting — instead of A-then-B politeness. That's a hard generation problem (it requires modeling turn-taking dynamics), and it's squarely aimed at the AI NPC and dubbing markets.</li>
+</ul>
+<p><img alt="Context-aware delivery with stacked tags" src="assets/expression_tags.png" /></p>
+<h2>The competitive picture</h2>
+<p><img alt="Latency vs quality, Oct 2026" src="assets/latency_quality.png" /></p>
+<p>Voice models are now a two-axis race — speed and expressiveness — and the players are multiplying: Cartesia (Sonic 3.6), OpenAI (GPT-4o mini TTS), Google (Gemini Flash TTS), plus startups like Deepgram, Fish Audio, and Boson. ElevenLabs benchmarked Turbo against Cartesia and OpenAI with network latency subtracted — always re-run those on your own text length, voice, and region, but directionally Turbo's pairing of ~150 ms first-speech with full expressive range is the bar everyone now has to clear. ElevenLabs also says enterprise calling is over <strong>55% of its business</strong>, and v4 knows how to handle confrontations, escalations, and holds differently — the voice-agent economy is now the voice model economy.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>The latency budget is the product.</strong> In voice agents, 150 ms vs. 700 ms time-to-first-speech is the difference between "assistant" and "phone tree."</li>
+<li><strong>Streaming beats batch by construction.</strong> Overlap synthesis with generation and time-to-first-audio decouples from sentence length — that's the architectural move, not a faster chip.</li>
+<li><strong>Direction tags are a new programming language for voice.</strong> <code>[softly]</code>, <code>[laughter]</code>, stacked sequences, IPA control — prompt engineering came for audio, and it works because the model reads context, not just characters.</li>
+<li><strong>Ten seconds is enough to clone you.</strong> Instant Voice Clones from 10s of audio is a capability line worth taking seriously — the guardrails question (ElevenLabs requires verification for PVC) is now load-bearing for every deployment.</li>
+</ol>
+<hr />
+<p><em>Sources: ElevenLabs launch announcement (Sept 28, 2026); TechCrunch reporting; company benchmark vs. Cartesia Sonic 3.6, Google Gemini Flash/Flash-Lite TTS, OpenAI GPT-4o mini TTS. Latency budget and tradeoff numbers are schematic/illustrative except where marked vendor-reported; benchmark figures come from ElevenLabs' own tests.</em></p>
+<p><em>Companion notebook: simulate the streaming-vs-batch first-audio gap across sentence lengths — <code>voice_streaming_latency.ipynb</code>.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/voice_streaming_latency.ipynb">voice_streaming_latency.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
