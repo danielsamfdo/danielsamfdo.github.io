@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Model That Doesn't Refuse: Mistral's 1.05T Bet on Open Security | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Model That Doesn't Refuse: Mistral's 1.05T Bet on Open Security</h1>
+<div class="meta">2026-10-14 &middot; Tech news / ML architectures (open-weight MoE — Mistral Large 4, Oct 6)</div>
+<article class="post">
+<p><em>On October 6, Mistral AI previewed Large 4 — nicknamed "le Chonk" — a trillion-parameter, natively multimodal mixture-of-experts model trained on 3,800 Grace Blackwell GPUs in Europe. Only 52B parameters wake up per token. The weights ship by the end of October. The story isn't the size — it's the pitch: security work that closed models refuse.</em></p>
+<h2>The week the open frontier got French</h2>
+<p>October's open-weight race has a rhythm: <strong>Reflection Beam</strong> landed October 5 (501B total, 23B active), and one day later <strong>Mistral Large 4</strong> previewed at <strong>1.05 trillion total parameters with 52B active</strong> — the largest open-weight model announced in Europe, trained end-to-end in Mistral's own European datacenters. The API preview is live now; the weights (license still unpublished) are promised by end of October.</p>
+<p>The headline numbers, from Mistral's model card:</p>
+<table>
+<thead>
+<tr>
+<th>Spec</th>
+<th>Mistral Large 4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Architecture</td>
+<td>Granular mixture-of-experts, hybrid instruct + reasoning</td>
+</tr>
+<tr>
+<td>Parameters</td>
+<td>1.05T total, 52B active, 1.6B vision encoder</td>
+</tr>
+<tr>
+<td>Modalities</td>
+<td>Text + image in, text out</td>
+</tr>
+<tr>
+<td>Context</td>
+<td>1M on the model card; 524K on the served preview</td>
+</tr>
+<tr>
+<td>Reasoning</td>
+<td>Adjustable <code>reasoning_effort</code> (preview: <code>none</code> and <code>high</code>)</td>
+</tr>
+<tr>
+<td>Training</td>
+<td>From scratch on 3,800 NVIDIA Grace Blackwell GPUs, 160+ languages</td>
+</tr>
+<tr>
+<td>Pricing</td>
+<td>$1.36/$4.18 per 1M in/out at list; 50% launch sale → $0.68/$2.09 (no end date given)</td>
+</tr>
+</tbody>
+</table>
+<p>One wrinkle the launch-day coverage caught: several outlets first reported 49B active; the model card now says 52B and 1.05T total. Use the card's numbers — and plan around 524K context until Mistral's own endpoint proves 1M.</p>
+<p><img alt="Stored vs active parameters across October's open-weight models" src="assets/ml4-sparsity.png" /></p>
+<h2>ELI5: why "52B awake" decides the bill, not the "1.05T" label</h2>
+<p>A mixture-of-experts model is a stadium full of specialists with a bouncer at the door. For each token, a router picks which few experts handle it; the rest sleep. So:</p>
+<ul>
+<li><strong>The 1.05T sets memory, not compute.</strong> You must hold the whole model: roughly <strong>1 TB at 8-bit precision, ~525 GB at 4-bit</strong> — multi-GPU server hardware, not a workstation. When the weights land at month end, this number decides your hardware bill.</li>
+<li><strong>The 52B sets compute and roughly the price.</strong> Inference cost scales mostly with active parameters. Serving ML4 costs <em>like</em> a ~52B model, with the knowledge capacity of a trillion-parameter one — <em>if</em> the sparsity holds up.</li>
+</ul>
+<p>That last clause matters. Sparse MoE works when the router keeps picking the right experts. A 4.95% activation ratio is standard territory now (Beam: 4.59%, Kimi K3: ~4.9%) — the industry converged on "about 5% of the brain awake" as the price/performance sweet spot.</p>
+<h2>How it works: the three numbers that decide whether you care</h2>
+<p><strong>1. The coding-agents number: 61.7% on DeepSWE v1.1.</strong> That edges GLM-5.3's 61%. But the honest comparison is the human one: on Surge AI's blind coding ratings (1–5), ML4 scored <strong>3.74</strong> — ahead of Kimi K3 (3.59) and GLM-5.3 (3.60), but nearly half a point behind <strong>Claude Opus 5 at 4.22</strong>. Vendor-selected numbers all; still, the gap to closed frontier is visible in Mistral's own chart. AutomationBench (657 business workflows): <strong>59.9%</strong>, ahead of the Chinese open models listed.</p>
+<p><strong>2. The vision number: 42% on Dense 200 (visual grounding).</strong> Visual grounding — pointing at <em>which pixels</em> answer the question — is ML4's best relative claim: it edges GPT-6 Astra's 41%. For documents, charts, and engineering drawings, this is the row to watch.</p>
+<p><strong>3. The security number: 82% on the reproduce-and-patch test in the Artificial Analysis Cyber Index — the highest of any model, where Mistral says Claude Opus 5.5 and GPT-6 Astra score near zero <em>because they refuse the task</em>.</strong> Cybench (40 CTF-style challenges): 93%. Lakera B3 attack resistance: 93.3%, the highest Mistral measured.</p>
+<p><img alt="Mistral's vendor-selected headline benchmarks and their stated rivals" src="assets/ml4-benchmarks.png" /></p>
+<h2>The real story: "refusals are a security risk"</h2>
+<p>Read the cyber headline carefully, because Mistral's argument is genuinely interesting — and genuinely debatable:</p>
+<blockquote>
+<p>Losing access to a tool partway through an incident can itself become a security risk. Self-hosted open weights let organizations run security work under their own policies.</p>
+</blockquote>
+<p>The thesis: closed models' provider-level refusals can block <em>legitimate</em> vulnerability research and incident response. Mistral is red-teaming ML4 with cybersecurity leaders, vetted partners, and <strong>state authorities</strong> — who, Mistral says, get the model "with reduced moderation and expanded cyber capabilities." The offensive-use question is obvious (one HN commenter flagged it immediately), and Mistral's answer is that the work happens either way; the only question is whose hands the tool is in.</p>
+<p>The honest reading of the 82%: part of that lead comes from <em>refusing less</em>, not <em>failing less</em>. Treat it as a capability-plus-policy score, not a pure capability score.</p>
+<p><img alt="The cyber pitch: ML4's lead comes partly from refusing less, not failing less" src="assets/ml4-cyber.png" /></p>
+<p>The independent check (Artificial Analysis, measured on the preview API): <strong>Intelligence Index 38</strong> — above the median 26 for its price class, but Simon Willison's verdict is blunt: Mistral is "about 6 months behind the frontier," a big jump from Large 3 (which scored 9). Speed: <strong>116.1 tokens/s</strong>, well above the 74.6 median — genuinely fast. The tax: <strong>verbosity</strong>. AA measured ML4 producing ~200M tokens on the index versus an 81M median — about <strong>2.5× the output tokens</strong>. Per-token prices lie when the model writes 2.5× as much.</p>
+<p><img alt="Pricing: the 50% launch sale against Mistral's own lineup" src="assets/ml4-pricing.png" /></p>
+<h2>The economics: a sale before the weights commoditize the model</h2>
+<p>ML4's list sits just under Mistral-hosted GLM-5.3 ($1.40/$4.40); the sale is half that. But watch what happened to Kimi K3 after <em>its</em> weights shipped: AI Gateway went from one host to <strong>17 providers</strong>, input prices falling from $3 to $0.45. Once ML4's weights land, third-party hosts will undercut Mistral's own API on the same model — Mistral's 50% sale looks partly like anchoring the reference price <em>before</em> the competition arrives.</p>
+<h2>The weights-day checklist (end of October)</h2>
+<p>When the checkpoint drops, check in this order:</p>
+<ol>
+<li><strong>The license</strong> — Apache 2.0, a Mistral research license, or custom decides commercial use, fine-tuning, and redistribution.</li>
+<li><strong>Which build shipped</strong> — co-founder Guillaume Lample says the RL run is still going; the downloadable "final version" may differ from today's preview.</li>
+<li><strong>Precision and size</strong> — ~1 TB at 8-bit. Plan the hardware.</li>
+<li><strong>Day-one serving</strong> — vLLM / SGLang / llama.cpp support for the architecture.</li>
+<li><strong>Context</strong> — does the open checkpoint honor 1M, or the 524K the preview serves?</li>
+<li><strong>Independent evals</strong> — re-run your own repo tasks; wait for Artificial Analysis to re-score.</li>
+</ol>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>1.05T total / 52B active</strong>: memory scales with the big number, compute with the small one. That's the entire MoE bargain.</li>
+<li><strong>Best open-weight model built outside China on vendor charts</strong> — but every headline number is vendor-selected. Independent signal says ~6 months behind closed frontier, and human evals still favor Opus-class models for coding.</li>
+<li><strong>The security pitch is the real differentiator</strong>: 82% on reproduce-and-patch, with the explicit thesis that refusals block legitimate defense. Whether that's responsible or reckless is the debate October should have.</li>
+<li><strong>Budget at list price, expect verbosity</strong>: 2.5× median output tokens erases per-token savings fast.</li>
+<li><strong>The event isn't the preview — it's month end.</strong> License, build, precision, and host competition decide what "open" actually costs.</li>
+</ol>
+<p><em>Benchmark figures are Mistral's self-reported selections (Oct 6, 2026); independent figures from Artificial Analysis and Simon Willison's notes, as collated October 9, 2026. Treat vendor numbers as the opening bid, not the verdict.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/ml4_open_security.ipynb">ml4_open_security.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
