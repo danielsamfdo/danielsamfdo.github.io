@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The 1M-Token Training Run: How Alibaba Trains Coding Agents on 8-Hour Bug Hunts | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The 1M-Token Training Run: How Alibaba Trains Coding Agents on 8-Hour Bug Hunts</h1>
+<div class="meta">2026-10-17 &middot; Agents / AI training infra (elastic RL for xLong-horizon agents — Alibaba QwenGyre)</div>
+<article class="post">
+<p>Your coding agent doesn't train on code snippets anymore. The frontier trains on full workdays: one execution can run for hours, hit hundreds of tool calls, and burn through nearly a million tokens. Alibaba's Qwen team just published the machinery that makes that training tractable — QwenGyre, an elastic reinforcement-learning framework for what they call "xLong-horizon" agents (arXiv 2609.33848).</p>
+<p>The headline numbers: on their flagship Qwen 3.8 2.4T with ~700K tokens per rollout, NL2RepoBench went from 52.5% to 58.5% in 48 steps, and the full run took 75.42 hours instead of 134.55 (Async baseline) or 91.47 (Colocate) — up to 1.85× faster at matched scores.</p>
+<h2>The ELI5 version</h2>
+<p>Training an agent with RL is like coaching a junior engineer: they try a task, you score the result, they adjust. But when one "try" takes 3 hours and another takes 20 minutes, two things break:</p>
+<ol>
+<li><strong>The straggler tax.</strong> GPUs sit idle waiting for the slowest execution to finish — like a classroom where everyone stares at the ceiling until the last kid hands in the exam.</li>
+<li><strong>The redundancy tax.</strong> One execution branches into many possible paths that mostly share the same beginning. Training on all of them naively means recomputing the same prefix over and over.</li>
+</ol>
+<p>QwenGyre attacks both. It's not a model — it's the training system around the model.</p>
+<p><img alt="Wasted GPU-hours from rollout stragglers" src="assets/straggler_idle.png" /></p>
+<h2>How it works, part 1: the elastic scheduler</h2>
+<p>Normal RL setups pick one of two bad options. <strong>Colocate</strong>: all GPUs do rollouts, then all GPUs train — the whole pool waits for the slowest agent execution. <strong>Async</strong>: split the pool statically, half rollouts, half training — but neither side can borrow the other's spare GPUs, so capacity sits stranded while stragglers dribble in.</p>
+<p>QwenGyre organizes hardware into independently switchable <strong>cells</strong>. As rollout executions finish, cells flip from inference to training on the fly. Live harness runs are never interrupted: model requests get rerouted to the remaining rollout engines mid-flight, KV caches migrate over RDMA (no recomputation), and the freed cells join the ongoing training step as extra data-parallel replicas.</p>
+<p>The switching is fast: 8.52 seconds rollout→training, 3.46 seconds back. Against executions that last hours, that's rounding error.</p>
+<p><img alt="Elastic cells migrate between rollout and training" src="assets/elastic_cells.png" /></p>
+<h2>How it works, part 2: the trajectory processor</h2>
+<p>The second innovation is how training samples are built from branching agent histories. The framework:</p>
+<ul>
+<li><strong>Reconstructs branching histories as prefix-shared trajectory trees</strong> — the shared beginning of an execution is stored and trained on once, not once per branch.</li>
+<li><strong>Scores partial progress</strong> — timed-out executions aren't thrown away; the preserved workspace is scored as-is, so an 80%-done 3-hour run still teaches.</li>
+<li><strong>Deduplicates redundant paths</strong> — at most 5 trajectories per execution. Evaluator failures are excluded rather than scored zero (a broken grader shouldn't poison the signal).</li>
+</ul>
+<p>The 5-trajectory cap matched uncapped scores while cutting forward-backward time 25.2%. At 8 branches per execution, prefix sharing alone gives 2.1×, and the cap pushes it to 3.1×.</p>
+<p><img alt="Prefix-shared trajectory trees with a 5-trajectory cap" src="assets/trajectory_tree.png" /></p>
+<h2>The state of the art</h2>
+<p>The scale test is serious: Qwen 3.6 122B on 24–32 nodes, and Qwen 3.8 2.4T on 192 nodes (4 cells of 48), with rollouts served by SGLang and training in Megatron, running inside an unmodified black-box harness (Claude Code 2.1.220 — the framework doesn't get to cheat by changing the agent's tools).</p>
+<p><img alt="NL2RepoBench gain and wall-clock speedups" src="assets/results.png" /></p>
+<p>What the numbers say:</p>
+<ul>
+<li><strong>+6.06pp on NL2RepoBench</strong> (52.48% → 58.54%) in 48 steps — repository-level coding, not quiz questions.</li>
+<li><strong>1.78× faster than Async, 1.85× faster than Colocate</strong> end-to-end. The gap shrinks when many queries hit the timeout (worst case 1.21× on the 2.4T) — stragglers still bite, just less.</li>
+<li><strong>8.5s / 3.5s cell switches</strong> — the migration machinery costs nothing measurable.</li>
+</ul>
+<p>The honest caveat: QwenGyre's numbers are vendor-reported, and the paper links no public code release. Treat the framework as an existence proof of a technique, not a download.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>The agent frontier moved to the training loop.</strong> When single executions run hours and cost ~1M tokens, the bottleneck isn't the model — it's GPU scheduling and trajectory hygiene. The harness and the RL system around the model now decide who wins, exactly the way agent harnesses decided capability earlier this year.</li>
+<li><strong>Elasticity beats partitioning.</strong> Any time you have highly variable work, fixed splits strand capacity. Let the hardware follow the work.</li>
+<li><strong>Don't discard partial work.</strong> Scoring timed-out executions on their preserved state recovers a learning signal that naive "reward = 0" throws away — in my toy simulation above, the naive rule kills the signal entirely while partial scoring stays correlated 0.91 with true capability.</li>
+<li><strong>If you build agents:</strong> long-horizon evaluation is now the benchmark that matters (NL2RepoBench, TerminalBench). If your agent can't hold a task together for an hour, no amount of prompt engineering closes the gap — it has to be trained there.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/qwengyre_xlong_rl.ipynb">qwengyre_xlong_rl.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
