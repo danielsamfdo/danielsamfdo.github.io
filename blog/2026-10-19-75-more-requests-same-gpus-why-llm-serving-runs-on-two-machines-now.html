@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>75% More Requests, Same GPUs: Why LLM Serving Runs on Two Machines Now | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>75% More Requests, Same GPUs: Why LLM Serving Runs on Two Machines Now</h1>
+<div class="meta">2026-10-19 &middot; AI infrastructure / LLM inference serving (prefill/decode disaggregation — Splitwise/Mooncake/HMA-Serve/SPAD/DQ/KITE + Prime Inference)</div>
+<article class="post">
+<p><em>October 19, 2026 — AI infrastructure / LLM inference serving</em></p>
+<p>On October 2, Prime Intellect launched Prime Inference, a serving platform for open models running on GB200 NVL72 racks. The stack is all open source — NVIDIA Dynamo, vLLM, Mooncake, FlashInfer — and it processed nearly a trillion tokens a day before launch. The headline engineering number: <strong>nearly 40% lower p90 inter-token latency</strong>, achieved by running prefill and decode on separate GPU pools.</p>
+<p>The idea is two years old. Splitwise made the case at ISCA 2024. What's new is how far the split has gone: in September 2026, two papers pushed it <em>inside the checkpoint</em> and <em>inside the model architecture itself</em>. One request, two machines, two number formats, two architectures — joined at a single boundary called the KV cache.</p>
+<h2>ELI5: the two-stove kitchen</h2>
+<p>A restaurant has two jobs. The <strong>prep chef</strong> reads the entire banquet order at once — every ingredient, every allergy note — and does the heavy planning. The <strong>line cook</strong> plates one dish at a time, fast, in a rhythm.</p>
+<p>Now give them one stove. Every time a banquet order arrives, the prep chef takes over the whole kitchen for ten minutes, and every plate in progress sits there getting cold. That's your LLM on a single GPU: the prompt-processing phase (prefill) freezes the token-streaming phase (decode), and your chat stutters.</p>
+<p>The fix is two stoves. The prep chef gets the big burner — raw compute — because reading a whole prompt means comparing every token against every other token, and that math grows quadratically with prompt length. The line cook gets the fast conveyor — memory bandwidth — because plating one token means re-reading the entire recipe book (the model weights) from the shelf, every single step.</p>
+<p>The tray passed between the stoves is the <strong>KV cache</strong>: the attention state built during prefill that every decode step needs. Passing the tray costs a little. The entire engineering art of 2026 is making that handoff tax tiny — Prime got a KV transfer down from 146ms to 78ms with a better memory layout alone.</p>
+<p><img alt="One request, two machines: the disaggregated serving path" src="assets/architecture.png" /></p>
+<h2>How it works: one prompt, two jobs, one handoff</h2>
+<p><strong>Prefill is compute-bound.</strong> It processes your whole prompt in one forward pass, builds the KV cache, and its attention cost grows with the square of prompt length. It sets time-to-first-token (TTFT).</p>
+<p><strong>Decode is memory-bandwidth-bound.</strong> It generates one token at a time, and each step reloads the model weights plus the growing KV cache from HBM. It sets inter-token latency (ITL) — the rhythm of the stream.</p>
+<p>The profiles are almost perfectly opposite:</p>
+<p><img alt="Prefill vs decode: opposite hardware profiles" src="assets/profiles.png" /></p>
+<p>Run both on one GPU and they fight. A long prefill — common now that agent prompts run 100K+ tokens — stalls every streaming decode behind it. The damage shows up in the tail: most tokens look fine, then one freezes for the better part of a second. Chunked prefill (slicing prefills into small pieces interleaved with decode) softens this. Disaggregation removes it: the decode pool never sees a prefill at all.</p>
+<p>I built a tiny queueing sim to show the mechanism — a 1B-class model, agentic-length prompts (16K–64K tokens), seed 42, clearly a toy:</p>
+<p><img alt="Toy sim: colocated vs disaggregated tail latency under load" src="assets/sim_tail_latency.png" /></p>
+<p>At 1 request/second, splitting the phases cuts p99 inter-token latency <strong>5.0ms → 1.0ms (5×)</strong>, worst-case stalls <strong>931ms → 1ms</strong>, and p90 time-to-first-token <strong>622ms → 448ms</strong>. At 2 req/s the colocated p99 ITL blows out to 263ms while the split system stays at 1ms. The KV transfer costs <strong>3–4% of TTFT</strong> — the tax is real but small, and it shrinks as prompts grow.</p>
+<h2>State of the art: five systems, one direction</h2>
+<p>An excellent recent survey traces five systems across the separation spectrum — from splitting machines to splitting the model itself:</p>
+<p><img alt="Five systems: the separation keeps moving deeper" src="assets/spectrum.png" /></p>
+<p><strong>Splitwise (ISCA 2024, Microsoft Research)</strong> — separate machines, identical model. The baseline: <strong>1.4× throughput at 20% lower cost</strong>, up to 2.35× under the same power and cost budgets. Its key observation still holds: token generation doesn't need the latest GPUs' compute, so don't pay for it.</p>
+<p><strong>HMA-Serve (June 2026)</strong> — separate vendors. Tenstorrent Blackhole p150b cards (664 TFLOPS of BFP8, ~$1,300) run prefill; NVIDIA HBM GPUs run decode, with phase-wise quantization (BFP8 for prefill, BF16 for decode) and compute-transfer pipelining that overlaps KV egress with later prefill layers. Result: <strong>3.2× goodput, 4.8× goodput-per-dollar</strong> on Qwen3 4B–32B with no quality loss. The economics: an A100 wastes <strong>over 97% of its HBM bandwidth</strong> during 4K-token prefill, and HBM is 18% of an A100's manufacturing cost — 45% on a B200. That expensive bandwidth is only useful during decode.</p>
+<p><strong>SPAD (Princeton/UW)</strong> — separate chips, designed from scratch. Cut HBM bandwidth 40% and prefill slows only 17%; cut compute 50% and decode slows only 22% — each phase tolerates losing the resource it doesn't use. Their prefill chip: 8% faster prefill at 52% lower cost; decode chip: 97% of decode performance at 28% lower TDP; cluster simulations show <strong>19–41% lower hardware cost</strong>. Caveat, stated plainly: this is LLMCompass simulation, not fabricated silicon. Treat it as a bound, not a price list.</p>
+<p><strong>Disaggregated Quantization (Sept 22, 2026)</strong> — separate checkpoints. The core finding is an asymmetry: quantizing decode alone costs <strong>2–4× the accuracy</strong> of quantizing prefill alone (7× on Gemma3-1B), because prefill wants fast low-precision math while decode just wants its weights loaded intact. Their QADD training produces an NVFP4 prefill checkpoint alongside a separate decode checkpoint: <strong>+32.5 points on MMLU-Pro</strong> for 1-bit GGUF compression of Qwen3.8-27B, without touching the decode checkpoint. A third trick streams prefill weights from SSD block-by-block, delivering <strong>1.78× faster TTFT</strong> at 8K context.</p>
+<p><strong>KITE / Step Scale Transformer (Sept 23, 2026)</strong> — separate towers inside the architecture. A Prefiller tower builds the KV cache; a Decoder tower reads it; newly added capacity never participates in KV construction, so scaling the model stops scaling prefill cost. A 67B MoE version cuts analytical inference cost <strong>31.6%</strong> versus a 63B classic Transformer at better quality. The motivation is the bill: on OpenRouter traffic (Aug 22–Sep 20), uncached input tokens exceed output tokens <strong>16.29×</strong> for Claude Fable 5 and <strong>14.64×</strong> for GPT-6 Astra — input charges are ~75% of the total. For agentic workloads, prefill <em>is</em> the cost.</p>
+<h2>The production proof: Prime Inference's GB200 numbers</h2>
+<p>Research is nice; production numbers are better. Prime's October 2 launch disclosed the tuning that actually worked on GB200 NVL72, targeting an agentic workload (6K new tokens on a 140K-token prompt per turn, benchmarked with SemiAnalysis AgentX):</p>
+<ul>
+<li><strong>1:4 prefill/decode ratio</strong> served the most users: 66 sessions per prefill group at 101 tokens/s per user</li>
+<li><strong>DEP8 prefill topology</strong>: ~5× more usable prefix-cache capacity than TEP8 on the same hardware</li>
+<li><strong>Smaller prefill budget</strong> (8K → 4K tokens/step): median queue wait 550ms → 110ms, median TTFT down ~20%</li>
+<li><strong>NVFP4 KV compression</strong>: 576 → 352 bytes per MLA row; cached tokens per decoder 1.09M → 1.63M</li>
+<li><strong>Native sparse-MLA kernel</strong>: 12.0μs vs 17.7μs staged vs 13.7μs FP8 at 15 query tokens</li>
+<li><strong>BLHNC KV layout</strong>: transfer descriptors 19,559 → 1,940; mean transfer time 146ms → 78ms</li>
+</ul>
+<p>The packaging matters too: llm-d (highlighted in a KubeCon China 2026 keynote) puts PD disaggregation behind Kubernetes objects, and GPU virtualization lets ~2× as many decode instances share one card for <strong>~20% more cluster throughput</strong>. And the split is generalizing beyond prefill/decode — vision encoders are being disaggregated from LLMs, and MoE systems are splitting attention from FFN.</p>
+<h2>Takeaways</h2>
+<ol>
+<li><strong>One GPU per request is a compromise for both phases.</strong> The split is now standard infrastructure — NVIDIA documents it as an ordinary Dynamo configuration, and cloud providers list it as a baseline option.</li>
+<li><strong>The separation keeps moving deeper</strong>: machines (2024) → vendors (mid-2026) → checkpoints and architectures (Sept 2026). The sharp question now: when the phases run on different silicon, in different number formats, in different towers — what does it even mean to serve "a model"?</li>
+<li><strong>The handoff tax is the product.</strong> KV transfer engineering — NIXL, BLHNC layouts, Mooncake's DRAM tier, compute-transfer pipelining — decides whether the split pays. That tax is down to tens of milliseconds and falling.</li>
+<li><strong>Prefill is the bill.</strong> Agentic traffic runs 14–16× input-heavy; every prefill optimization (budgets, prefix caching, NVFP4 KV, SST-style architectures) lands directly on cost.</li>
+<li><strong>Don't bother at small scale.</strong> A well-tuned single pool on vLLM is simpler and fine for light traffic. Disaggregation pays when you serve one model at real scale with streaming SLOs your users can feel.</li>
+</ol>
+<hr />
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/pd_disaggregation.ipynb">pd_disaggregation.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

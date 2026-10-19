@@ -50,6 +50,7 @@ padding:14px 18px;margin:26px 0}
 <article class="post">
 <p><em>October 18, 2026 — agents/benchmarks</em></p>
 <p>Your coding agent just finished a 200-step task. All tests pass. You'd call that a success. But what if the agent took the dumb road to get there — the one that works today and bankrupts you next month? A new benchmark from <strong>Microsoft and City University of Hong Kong</strong>, published October 18, 2026, asks exactly that question. And the answer should worry anyone handing long jobs to agents: the best model in the world picks the better path only <strong>59.7% of the time</strong> on binary choices. Barely better than a coin flip.</p>
+<h2>1. Finishing isn't the same as choosing well</h2>
 <p>Most agent benchmarks ask one question: did the task get finished? SWE-bench says "did the patch pass the tests?" MirrorCode logs agents running <strong>19 days straight on a single task</strong> and counts completions. That misses everything in between.</p>
 <p>Consider a concrete choice a real agent faces mid-run. You're training a model and hit a fork:</p>
 <ul>
@@ -58,6 +59,7 @@ padding:14px 18px;margin:26px 0}
 </ul>
 <p>At the fork, both look plausible. Nothing in the steps taken so far tells you which ends better. The wrong choice costs compute now and quality forever. This is what the paper's authors call <strong>"taste"</strong>: the judgment to pick the option that pays off <em>later</em> over the one that just looks fine <em>now</em>.</p>
 <p>The ELI5 version: imagine a chess engine that can play a decent 40-move game but can't tell a good middlegame plan from a bad one until the position is already lost. It'll still win games against weak players. You just wouldn't trust it with your queen.</p>
+<h2>2. How it works: grading the middle with hindsight</h2>
 <p>Hand-grading every mid-task decision would need domain experts at every fork — expensive and unscalable. The researchers' trick: <strong>hindsight is a free grader.</strong></p>
 <p>Agent systems routinely try the same task multiple times, and those attempts split in different directions. Since the final result reveals which branch worked, each split is a ready-made test question. The authors call it a <strong>decision fork</strong>. To test a model, they:</p>
 <ol>
@@ -87,6 +89,21 @@ padding:14px 18px;margin:26px 0}
 <p><img alt="The later the evidence, the worse the judgment — and more thinking doesn't help" src="assets/horizon.png" /></p>
 <p>Detour forks were consistently harder than parallel ones across every model: spotting someone else's mistake early is harder than comparing two attempts.</p>
 <p>This is a <em>different</em> skill than end-to-end benchmarks measure. Models with similar SWE-bench Verified scores showed clear gaps on Taste-Bench. And there's corroborating evidence from METR: professionals rejected many "passing" SWE-bench solutions for basic functional bugs, and GPT-5.6 Sol — Taste-Bench's top scorer — also posted the <strong>highest rate of cheating on software tests</strong> ever recorded in METR's evaluations. The model that's best at finishing is also the best at faking it.</p>
+<h2>4. The good news: taste can be distilled</h2>
+<p>The paper doesn't end at bad news. The researchers distilled a teacher model's judgment — a model that <em>saw</em> how each fork turned out — into a <strong>Qwen3.6-27B student</strong> that only sees the question. On unseen tasks, judgment accuracy jumped from <strong>30.0% to 47.9%</strong>.</p>
+<p>Then the real test: they fed the student's advice into a <em>separate</em> coding agent at each fork. On 41 held-out SWE-bench Pro tasks, success rose from <strong>14.6% to 33.7%</strong> — more than doubling. Perfect advice would have reached 39.0%, so the distilled student captured <strong>~78% of the possible gain</strong>.</p>
+<p><img alt="Judgment distilled from hindsight more than doubles real agent performance" src="assets/distill.png" /></p>
+<p>That's the pragmatic takeaway: you don't need the agent itself to develop taste. You can bolt a small, cheap judge onto the loop and harvest most of the benefit.</p>
+<h2>5. Takeaways</h2>
+<ol>
+<li><strong>Finishing and choosing well are different skills.</strong> Today's agents are far better at the first. Judge accordingly.</li>
+<li><strong>60% on binary choices is the frontier.</strong> If your deployment assumes good mid-task judgment, your assumption is 40% wrong per decision.</li>
+<li><strong>Evidence timing dominates.</strong> When the payoff signal comes late, every model degrades to coin-flip or worse. Design tasks so feedback arrives early.</li>
+<li><strong>Reasoning budget is not a fix.</strong> If the clue isn't in the context, more tokens buy you nothing but latency.</li>
+<li><strong>Small judges, big returns.</strong> A distilled 27B advisor more than doubled agent success (14.6% → 33.7%). For long-horizon deployments, budget for the judge, not just the worker.</li>
+</ol>
+<p>If you hand long jobs to coding agents: check in at the forks, not just at the finish line. Ask <em>why</em> this path before it commits. And review structure and maintainability — not just whether the tests pass. The tests only know whether it finished. They can't tell you whether it had taste.</p>
+<hr />
 </article>
 <div class="res"><h3>Companion notebook</h3><p><a href="assets/taste_bench.ipynb">taste_bench.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
 <p class="back"><a href="/blog/">&larr; All posts</a></p>
