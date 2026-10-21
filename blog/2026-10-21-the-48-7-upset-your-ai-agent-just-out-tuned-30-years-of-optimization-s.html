@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The 48.7% Upset: Your AI Agent Just Out-Tuned 30 Years of Optimization Science | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The 48.7% Upset: Your AI Agent Just Out-Tuned 30 Years of Optimization Science</h1>
+<div class="meta">2026-10-21 &middot; Agents / optimization (AgenticBBO-Bench — LLM agents vs classical optimizers)</div>
+<article class="post">
+<p>For thirty years, black-box optimization has belonged to the numerical people. Gaussian-process Bayesian optimization, CMA-ES, TuRBO — fixed mathematical machinery that treats your problem as numbers in, numbers out, and finds the best configuration in a few hundred tries. The reign is ending. A new benchmark from Nanjing University's LAMDA group, <strong>AgenticBBO-Bench</strong> (arXiv:2610.12183, Oct 8, 2026), put LLM agents against those classical optimizers across five domains — and the agent won <strong>4 out of 5</strong>.</p>
+<p>The headline number: on molecular design (GuacaMol), the agentic approach scored <strong>0.840</strong> where direct LLM prompting managed <strong>0.565</strong> — a <strong>+48.7%</strong> relative jump. On synthetic benchmark functions, <strong>0.460 → 0.661 (+43.7%)</strong>. Averaged across all five families: <strong>+30.3%</strong>. And it beat the best classical numerical optimizer in four of the five domains. The fifth — database tuning — still belongs to TuRBO (0.660 vs the agent's 0.525), which is itself the most interesting part of the story.</p>
+<h2>The ELI5 version</h2>
+<p>You have 40 guesses to find the best settings for a database. Each guess costs you a real benchmark run — time and money.</p>
+<p><strong>The old way:</strong> a math formula picks each guess. It knows nothing about what the knobs <em>mean</em>. It sees "knob 7 = 0.42, score = 0.81" and fits a curve.</p>
+<p><strong>The direct-LLM way:</strong> you hand the LLM the history and ask it to guess the next settings. One shot per round. No tools, no reasoning trace, no plan. This is the "AI writes your emails" brain doing optimization. It works a little. Barely.</p>
+<p><strong>The agentic way:</strong> the LLM sits in a workspace with a Python terminal. Before each expensive evaluation, it can read the task description ("this knob is the PostgreSQL shared-buffers setting"), analyze the search history, write and run its own analysis scripts, fit its own proxy models, and <em>decide online</em> what to do next. The optimization procedure isn't prescribed anymore — the agent organizes it.</p>
+<p>Same LLM, three roles. The only difference is the harness. (Regular readers will notice this is the same lesson as <a href="https://danielsamfdo.github.io/blog/2026-09-18-the-same-model-three-agents-why-the-harness-not-the-model-decides-what-your-ai-can-do.html">my agent-harness post</a>: the harness, not the model, decides what your AI can do.)</p>
+<p><img alt="Direct LLM prompting vs agentic BBO: the fixed procedure versus the agent-organized decision loop" src="assets/agenticbbo_architecture.png" /></p>
+<h2>What the benchmark actually ran</h2>
+<p>AgenticBBO-Bench puts five established optimization domains under one finite-budget protocol — same budgets, same scoring, matched initializations:</p>
+<ul>
+<li><strong>BBOB</strong> — synthetic math testbeds (the ones every optimizer is graded on)</li>
+<li><strong>HPO</strong> — hyperparameter tuning of SVMs and random forests (Bayesmark)</li>
+<li><strong>DBTune</strong> — PostgreSQL and Sysbench configurations</li>
+<li><strong>BBOPlace</strong> — chip macro placement (yes, arranging blocks on a chip)</li>
+<li><strong>GuacaMol</strong> — molecular design (searching chemical space for useful molecules)</li>
+</ul>
+<p>The agent under test: <strong>DeepSeek V4.1 Flash</strong> as the backbone, running in a <strong>Codex</strong> harness with Bash/Python and structured search-state access. The "Direct" baseline: same model, given the task description and history in context, generating the next candidate directly. The numerical baselines: GP-BO, TuRBO, CMA-ES, TPE, plus domain specialists (Graph-GA for molecules).</p>
+<p>The results, normalized so higher is better:</p>
+<p><img alt="Agentic vs Direct vs best numerical baseline across the five benchmark families" src="assets/agenticbbo_main_results.png" /></p>
+<p>Agentic beats Direct everywhere — +43.7% on BBOB, +48.7% on GuacaMol, +30.3% average. Against the classical optimizers, it takes BBOB (0.661 vs TuRBO's 0.592), HPO (0.554), chip placement (0.544), and molecular design (0.840 vs Graph-GA's 0.054 — the domain specialist isn't even close). TuRBO holds database tuning. This is not "LLMs are okay at optimization." This is a general-purpose agent beating domain-tuned numerical methods in four of five arenas.</p>
+<h2>The state of the art: three findings that rewrite the playbook</h2>
+<p><strong>Finding 1: More tools ≠ better. More semantics = better.</strong></p>
+<p>The team ablated the agent's setup three ways, and the results are the kind that should make you redesign your agent stack:</p>
+<ul>
+<li>Bolting a Gaussian-process suggestion tool onto the agent: mean score <strong>0.589 → 0.574</strong>. Adding the <em>full</em> GP toolkit (surrogate predictions, acquisition scoring, diagnostics): <strong>→ 0.538</strong>. Every extra numerical tool made the agent <em>worse</em> on average.</li>
+<li>Giving the agent task semantics (what the knobs actually mean): <strong>0.465 → 0.595</strong>. Broadly useful, every task.</li>
+<li>Giving it <em>detailed</em> domain priors: <strong>0.595 → 0.569</strong> — helped on two tasks, hurt on two. And a prior with the wrong support region wiped the gain entirely (<strong>0.872 → 0.682</strong>).</li>
+</ul>
+<p>The mechanism is delicious: with GP tools available, agents still did <strong>35.4% of rounds in pure Python</strong> and 17.4% mixing both. They don't hand the search to the fixed optimizer — they write their own task-specific analyses. The paper's Bigblue1 case study shows the agent fitting a linear proxy from observed chip layouts, constructing a new placement from the learned pattern, and driving the score from <strong>0.551 → 0.664 in four evaluations</strong>. The fixed GP has a fixed inductive bias; the agent discovers the bias that fits <em>this</em> problem.</p>
+<p><img alt="Ablation results: extra GP tools lower the mean score, while task semantics raise it from 0.465 to 0.595" src="assets/agenticbbo_ablations.png" /></p>
+<p><strong>Finding 2: The hybrid pattern is the practical sweet spot.</strong></p>
+<p>Where should the LLM act in the loop? Three options tested: full online agent, agent-then-handoff to a numerical optimizer, and restricting the LLM to merely controlling a GP policy. Scores: online agentic <strong>0.569</strong>, agent→TuRBO handoff <strong>0.570</strong>, GP-policy control <strong>0.516</strong>, cold TuRBO <strong>0.475</strong>.</p>
+<p>Read that again: <strong>hand the search to TuRBO after an agent warm-up and you match the full online agent.</strong> The agent's value is front-loaded — it establishes the promising search trajectory with its semantics and reasoning; the numerical optimizer then absorbs those gains and converges with precision. You don't need the LLM online for the whole run. Run the agent for the first half, hand off to cheap classical machinery for the second, and keep all the performance while cutting inference cost.</p>
+<p><strong>Finding 3: The frontier leaderboard has a surprise — and a pricing lesson.</strong></p>
+<p>A compact five-task challenge (one representative task per domain) was run for seven frontier models under the same Codex harness. GPT-6 Astra tops it at <strong>0.591</strong>, but DeepSeek V4.1 Flash is right behind at <strong>0.584</strong> — and the two sit on the <strong>Pareto frontier of performance vs. cost</strong>. The paper's words: "models at very different price points can achieve similar aggregate scores," and "simply moving to a more expensive frontier model does not remove the need for better agent design."</p>
+<p>The spiciest row in the table: <strong>DeepSeek V4 Pro scores 0.368</strong> — dead last among the seven, far behind its own Flash sibling at 0.584, and below the plain GP reference (0.493). Bigger model, worse optimizer. No model dominates every domain. Optimization behavior is not a capability ladder you climb with scale; it's a different skill, and the harness plus the search strategy matter more than the parameter count.</p>
+<p><img alt="Seven frontier LLMs on the five-task challenge: score vs relative token cost, with GPT-6 Astra and DeepSeek V4.1 Flash on the Pareto frontier" src="assets/agenticbbo_frontier_challenge.png" /></p>
+<h2>What this means for you (the hands-on part)</h2>
+<p>You don't need a chip-design lab. The pattern ports to anything where trying something costs time or money and you can't differentiate your way to the answer: hyperparameter tuning, prompt search, pricing experiments, ad-budget allocation, A/B test design. The recipe, straight from the paper's findings:</p>
+<ol>
+<li><strong>Write down the black box</strong>: the knobs, their ranges, and exactly how one try gets scored.</li>
+<li><strong>Set a finite budget</strong> (the paper's protocol is built on this) — the agent must earn every evaluation.</li>
+<li><strong>Seed with semantics, not machinery</strong>: a paragraph describing what the knobs mean. Per the ablation, this helps more than any extra optimizer tool.</li>
+<li><strong>Let the agent explore first, then hand off</strong>: run the agent for the first half of the budget, then give the trajectory to a classical optimizer (BO/TuRBO) for final precision. 0.570 ≈ 0.569 — you keep the performance, shed the token cost.</li>
+<li><strong>Distrust detailed priors</strong>: expert knowledge that is slightly wrong about <em>where</em> the good region is performs worse than none at all (0.872 → 0.682).</li>
+</ol>
+<p>The companion notebook replays all three mechanisms on a cheap 5-D multimodal toy: agentic beats random search and direct guessing (asserted, 8 seeds), agent warm-up + numerical handoff beats the cold numerical optimizer, and task semantics beat anonymous knobs while a wrong prior wipes the gain. All paper tables reproduced as reference.</p>
+<p>Code for the real thing: <a href="https://github.com/lamda-bbo/agentic-bbo">github.com/lamda-bbo/agentic-bbo</a>. Paper: <a href="https://arxiv.org/abs/2610.12183">arXiv:2610.12183</a> — Chen, Tan, Xue et al., Nanjing University.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>Agentic BBO beats direct LLM optimization in <strong>all 5</strong> benchmark domains (<strong>+30.3%</strong> average) and beats the best classical numerical optimizer in <strong>4 of 5</strong> (TuRBO holds database tuning at 0.660).</li>
+<li><strong>Semantics &gt; tools</strong>: task descriptions lift the agent 0.465 → 0.595; extra GP tools lower it 0.589 → 0.538. Agents write their own proxies instead of trusting fixed backends.</li>
+<li><strong>Detailed priors are unreliable</strong> — a wrong prior nearly erases the semantic gain (0.872 → 0.682).</li>
+<li>The winning deployment pattern: <strong>agent explores, numerical optimizer exploits</strong> (handoff 0.570 ≈ online 0.569, way above cold TuRBO 0.475).</li>
+<li>On the frontier challenge, GPT-6 Astra (0.591) and DeepSeek V4.1 Flash (0.584) define the performance-cost Pareto frontier — while the bigger DeepSeek V4 Pro finishes last at 0.368. Scale is not an optimizer.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/agentic_bbo.ipynb">agentic_bbo.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
