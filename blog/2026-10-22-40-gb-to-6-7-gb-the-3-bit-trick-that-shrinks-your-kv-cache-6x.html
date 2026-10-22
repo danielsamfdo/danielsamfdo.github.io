@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>40 GB to 6.7 GB: The 3-Bit Trick That Shrinks Your KV Cache 6x | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>40 GB to 6.7 GB: The 3-Bit Trick That Shrinks Your KV Cache 6x</h1>
+<div class="meta">2026-10-22 &middot; AI infrastructure / LLM inference (KV cache quantization — Google TurboQuant, arXiv 2504.19874, ICLR 2026)</div>
+<article class="post">
+<p>Your LLM doesn't reread the conversation every time it generates a word. It keeps notes — a key and a value vector for every token it has ever seen in this session — so each new token only needs one pass of attention over those notes. Those notes are the <strong>KV cache</strong>, and they are the single most expensive line item in LLM serving that nobody talks about.</p>
+<p>A 70-billion-parameter model at 128K context burns <strong>40 GB of GPU memory on the KV cache alone</strong> — nearly double the headroom left on two H100s after the weights load. The model weights are a fixed tax you pay once. The cache is a per-request, per-user tax that grows with your traffic. A new method from Google Research, <strong>TurboQuant</strong> (arXiv:2504.19874, accepted to ICLR 2026), cuts that cache <strong>6x</strong> — down to 3 bits per value — and speeds up attention <strong>8x</strong> on H100s, with zero calibration data and, on retrieval benchmarks, zero accuracy loss. The trick that makes it work is almost insultingly simple: <strong>rotate the vectors first</strong>.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine the model's notes as a stack of receipts. Each receipt has 128 numbers on it. Most numbers are small — but every receipt has two or three numbers that are enormous, the outliers. That's the real distribution of key vectors: spiky channels that dwarf everything else.</p>
+<p>Now you want to photocopy the whole stack in shorthand, using only 8 possible numbers per entry (3 bits). The photocopier has one template: it must choose a scale covering the biggest number on any receipt, because that's the shared range. So all the small numbers get crammed into two or three of the eight slots, and the fine detail dies. Quantizing the KV cache to 3 bits naively destroys quality for exactly this reason.</p>
+<p>TurboQuant's fix: <strong>rotate the receipts before photocopying.</strong> A random rotation doesn't change what's written on them — vector norms are preserved exactly — but it smears every outlier's energy across all 128 numbers. After rotation, no single number is huge; the whole distribution looks like a boring bell curve. The photocopier's 8 slots now cover a tight range, and the fine detail survives. Then, to clean up the leftover smudges, a second stage sketches the <em>error</em> with a 1-bit randomized transform that is mathematically unbiased — the Johnson–Lindenstrauss idea. Rotate, photocopy, de-smudge. That's the whole engine.</p>
+<p><img alt="Key-vector coordinate magnitudes before and after a random rotation: the worst outlier shrinks from ~41 to ~16 and kurtosis collapses 32.9 → 0.73, so a shared-range scalar quantizer stops being destroyed" src="assets/turboquant_rotation_fix.png" /></p>
+<h2>How it works: two stages, zero calibration</h2>
+<p><strong>Stage 1 — PolarQuant.</strong> Apply a random rotation matrix to each key and value vector, then quantize with the optimal scalar quantizer for each coordinate, computed analytically. No learned parameters, no calibration dataset. This is the crucial distinction from KIVI (per-channel keys, per-token values, 2-bit) and AWQ/GPTQ: everything in TurboQuant is <em>random</em>, so you can apply it to any model, at any time, in one shot.</p>
+<p><strong>Stage 2 — QJL error correction.</strong> The residual from Stage 1 gets compressed through a 1-bit Quantized Johnson–Lindenstrauss transform. The QJL step exists for one reason: attention is all inner products, and naive quantization <em>biases</em> inner products — it systematically shrinks attention scores. The 1-bit sketch is provably an <em>unbiased</em> estimator of the inner product, so the corrected attention scores are right in expectation. TurboQuant's own theory lands within a factor of ~2.7 of the information-theoretic lower bound on distortion — near the Shannon limit for this problem.</p>
+<p><img alt="TurboQuant's two-stage pipeline: raw BF16 KV → PolarQuant (random rotation + scalar quantization) → QJL 1-bit residual correction → serving-ready 3–4-bit KV, all data-oblivious" src="assets/turboquant_pipeline.png" /></p>
+<p>The companion notebook reproduces the two mechanisms at toy scale: the rotation shrinks a shared-range 3-bit quantizer's error several-fold (MSE 5.2 → 1.2 on outlier-prone vectors), and the QJL-style residual sketch drives inner-product bias from −0.033 to +0.000 over 2,000 Monte-Carlo trials.</p>
+<h2>The numbers: what 6x buys you</h2>
+<p>The serving math is the real product. Llama 3.1 70B, KV cache only:</p>
+<p><img alt="Llama 3.1 70B KV cache at 32K/128K/1M context: BF16 vs TurboQuant — 128K drops from 40 GB to 6.7 GB" src="assets/turboquant_memory_math.png" /></p>
+<ul>
+<li><strong>32K:</strong> 10 GB → 1.7 GB. On 2×H100 (20 GB of headroom after weights), concurrent users rise from ~2 to ~11 — <strong>5.5x more users per GPU-hour</strong>, cutting cost per user-hour ~5.5x.</li>
+<li><strong>128K:</strong> 40 GB → 6.7 GB. The workload that <em>could not physically fit</em> alongside the weights now fits with room to spare.</li>
+<li><strong>1M:</strong> ~320 GB → ~53 GB.</li>
+</ul>
+<p>On benchmarks, the paper's headline results: 100% retrieval on Needle-in-a-Haystack up to 104K tokens (0.997, matching full precision exactly), LongBench on Llama-3.1-8B-Instruct at 50.06 with 3.5-bit TurboQuant — identical to the full cache — and &lt;0.5% perplexity change at 3 bits. It beats KIVI, SnapKV, and PyramidKV in the paper's head-to-heads, and generalizes to vector search, beating product quantization on recall with near-zero indexing time.</p>
+<h2>The state of the art — and the honest caveat</h2>
+<p>Here is the part the headline tweets skip. Independent reproductions — two unofficial PyTorch/Triton ports, the only code that exists since Google hasn't shipped an official implementation as of October 2026 — land short of the paper on some workloads:</p>
+<p><img alt="Paper claims vs independent reproductions: retrieval benchmarks are pristine at 3 bits; reasoning benchmarks pay 15–25 points" src="assets/turboquant_accuracy_reality.png" /></p>
+<p>One port measured 0.9996 cosine similarity and 94% top-1 attention match at 8K context with 5.1x compression — excellent — yet still needed correction after an earlier "perfect generation at 5x" result traced back to a test bug. On reasoning benchmarks, 3-bit modes showed <strong>15–25 point drops</strong> at long context; a 4-bit variant held up much closer to the paper (~2.6–3.1x real-world KV reduction, ~1 point off the FP8 baseline).</p>
+<p>The practical read: the KV-cache compression ladder in October 2026 is FP8 KV (~2x, production-ready today in vLLM via <code>--kv-cache-dtype fp8</code>) at the bottom, and TurboQuant-style 3-bit methods at the top for when you specifically need more than 2x and can validate against your own eval set. Weight quantization (AWQ/GPTQ, 4x) and KV quantization (TurboQuant, 6x) stack: an AWQ 4-bit 70B (~35 GB weights) plus a TurboQuant 128K cache (6.7 GB) fits ~42 GB on a single 80 GB H100 — a workload that previously needed multiple GPUs.</p>
+<p>The direction is clear either way. Context windows keep growing, and the KV cache — not the weights, not the FLOPs — is what empties the GPU. A rotation and a random sign sketch just bought the industry its biggest free lunch in serving since PagedAttention. Validate it on your benchmarks before you trust the 3-bit headline. But don't ignore it: the era of the uncompressed KV cache is ending.</p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/turboquant_kv_cache.ipynb">turboquant_kv_cache.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
