@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Model That Trained Itself: 56% of Real GitHub Issues at 1/50th the Price | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Model That Trained Itself: 56% of Real GitHub Issues at 1/50th the Price</h1>
+<div class="meta">2026-10-23 &middot; LLMs / agentic training (MiniMax M2.7 self-evolution)</div>
+<article class="post">
+<p>Most "agentic" models are trained the normal way — pretrain, fine-tune, RLHF — and <em>then</em> taught tool use as an afterthought, the way you'd hand a carpenter a power drill and hope for the best. MiniMax took the opposite route with <strong>M2.7</strong>: they let the model act as its own critic during training, running it through <strong>100+ autonomous optimization rounds</strong> in an internal agent harness — generate outputs, test them, find the failures, patch the weak spots, repeat. MiniMax credits that loop with handling <strong>30–50% of the reinforcement learning workflow</strong> in the model's development.</p>
+<p>The result, announced in Shanghai in March 2026, is a proprietary text-only model that behaves like it was trained on agentic tasks from the ground up. And the numbers are genuinely uncomfortable for the frontier labs: <strong>56.22% on SWE-Pro</strong> — autonomously closing more than half of real GitHub issues — at <strong>$0.30 per million input tokens</strong>, against Claude Opus 4.6's $15. That's a <strong>50x input-price gap</strong> against a model that scores <em>lower</em> on the same benchmark.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine two ways to train a junior engineer.</p>
+<p>The normal way: you lecture her for a year (pretraining), then give her a handbook of best practices (fine-tuning), then a mentor reviews a few of her pull requests (RLHF). She can now write code. Whether she can <em>debug a production incident at 3 AM</em> — read logs, try a fix, run the tests, read the failure, try again — is a separate question. That's what "agentic" adaptation usually looks like: a model that can answer questions, wearing a tool belt it never really trained with.</p>
+<p>M2.7's way: the mentor is replaced by a second version of <em>herself</em>. After every task she grades her own work, figures out where it broke, and — critically — feeds that failure back into her own training, not just into her memory. A hundred rounds of that, and "read the logs, fix, test, retry" stops being a skill she was taught and starts being how she thinks. That's the difference between an agentic <em>model</em> and a model <em>adapted</em> for agents.</p>
+<p><img alt="The self-evolution loop: generate outputs → run tools and test the work → self-critique and score failures → patch weights and reward signals, repeated for 100+ autonomous rounds. Normal post-training runs this loop once; M2.7's loop runs itself." src="assets/selfevolve_loop.png" /></p>
+<h2>How it works: the loop inside the loop</h2>
+<p>The harness (described in the October review as an internal agent system called OpenClaw) treats the model as both student and grader:</p>
+<ol>
+<li><strong>Generate.</strong> The model attempts real tasks — debugging sessions, metric analyses, document rewrites — with full tool access.</li>
+<li><strong>Evaluate.</strong> It runs the tools itself: reading logs, executing code, checking whether the fix actually passed.</li>
+<li><strong>Critique.</strong> Failures get scored and localized. This is the key step: the model isn't just collecting preference pairs for a human-written reward model. It's <em>improving the reward signals themselves</em> — learning to distinguish "looks right" from "actually passed the tests."</li>
+<li><strong>Patch.</strong> Weights and reward signals get updated against the failure, not just against a static dataset. Then the loop restarts with the improved model, so each round compounds: round 40's critic is smarter than round 1's.</li>
+</ol>
+<p>The notebook's toy simulation of this loop shows the characteristic shape: fast early gains, then a long plateau. The first 10 rounds do most of the work; the last 10 add almost nothing. That's also the honest limit of recursive self-improvement — it compounds until the critic can't see further than the student, at which point the loop stalls. MiniMax's "30–50% of the RL workflow" claim is really a claim about how far that plateau extends before you need human-designed objectives again.</p>
+<p><img alt="A toy simulation of recursive self-improvement: 100 autonomous rounds drive a task score from 0.40 to a 0.62 ceiling, with fast early gains and a long plateau. MiniMax credits this mechanism with 30–50% of M2.7's RL workflow." src="assets/selfevolve_improvement.png" /></p>
+<p>One design choice matters enormously: M2.7 is <strong>text-only</strong>. No vision encoder, no audio. That's a deliberate trade — 204,800 tokens of context plus <em>automatic</em> prompt caching (no manual cache config; the prefix is cached on first use and charged at a reduced rate after). In a 20-step agent loop with a 6K-token shared prefix, that auto-caching cuts input spend by roughly half — the October review claims 40–60% total cost reduction in production agentic workflows, and the notebook's dollar math lands at 54%. The 40–60% band only holds for long loops with big prefixes, though; a 5-step loop saves less. Caveats as always.</p>
+<h2>The numbers: what 50x buys you</h2>
+<p>The benchmark figures below come from an October 2026 review published by an API platform — <strong>platform-reported, not independently verified</strong>. Treat them as the vendor's story, not a neutral audit:</p>
+<p><img alt="Benchmark head-to-head from the October 2026 review: SWE-Pro 56.22% vs ~50% (Opus 4.6) vs ~54% (GPT-5); Terminal Bench 2 82.4% vs 74.1% vs 79.2%; tool-calling accuracy 75.8% vs ~72% vs ~74%." src="assets/selfevolve_benchmarks.png" /></p>
+<ul>
+<li><strong>SWE-Pro 56.22% vs ~50% (Opus 4.6) vs ~54% (GPT-5).</strong> This is the headline that matters: the benchmark scores real GitHub issue resolution — the model either closes the ticket or it doesn't. On 1,000 tickets, +6.22 points over Opus is 62 extra shipped fixes.</li>
+<li><strong>Terminal Bench 2 82.4% vs 74.1% vs 79.2%.</strong> DevOps-style CLI work — log parsing, runbook steps, incident response — with near-zero tolerance for hallucinated flags. Note the honesty problem here: the launch announcement claimed <strong>57.0%</strong> on Terminal Bench 2, not 82.4%. Different harness, different version, different measurement conditions — same lesson as always: demand the version stamp before you trust a benchmark number.</li>
+<li><strong>Tool-calling accuracy 75.8% vs ~72% vs ~74%.</strong> Correct function invocation rate — the raw material every agent loop is built from.</li>
+<li><strong>GDPval-AA 1,342 ELO</strong> on multi-round document editing with conflicting feedback (launch claimed 1,495 — again, different measurements, same warning).</li>
+</ul>
+<p>And then the price chart:</p>
+<p><img alt="Input-token prices: M2.7 at $0.20 (API platform) / $0.30 (official) vs GPT-5 $10 and Claude Opus 4.6 $15 — 50–75x cheaper per input token. Throughput: ~100 tokens/sec on the highspeed variant, ~60 standard." src="assets/selfevolve_cost.png" /></p>
+<p>At ~8K input + 2K output tokens per agentic issue attempt, a single attempt costs <strong>$0.0048 on M2.7's official pricing vs $0.27 on Opus 4.6</strong> — and per <em>resolved</em> issue (attempt cost divided by success rate) it's $0.009 vs $0.54, a 60x gap. The notebook works all of this out. If you're spending $5,000/month on frontier tokens for coding agents, the platform review's claim that M2.7 cuts it to $100–300 is directionally right, even after you discount for marketing.</p>
+<h2>The honest caveat — where M2.7 loses</h2>
+<p>Three things the headline tweets skip. First, <strong>every number above is vendor- or platform-reported</strong>; the launch claims and the October review disagree on Terminal Bench (57.0% vs 82.4%) and GDPval-AA (1,495 vs 1,342 ELO), which tells you the measurement conditions aren't controlled. Second, <strong>it's proprietary</strong> — no open weights, API-only (OpenRouter lists it at $0.30/$1.20). Third, the successor is already here: <strong>MiniMax M3.1 Flash shipped October 19, 2026</strong> with a 1M-token context and video input. M2.7 was the proof of concept for self-evolving training; M3.1 is where the architecture goes next.</p>
+<p>And the model has real weaknesses: text-only (no multimodal input — chain it with MiniMax's Hailuo models for vision), creative long-form writing still belongs to Opus and GPT-5, a smaller third-party ecosystem, and verbose outputs you'll want to cap with max_tokens. Users on developer forums report it needs more babysitting than Claude in editors like Cline — the tool-use is strong, the judgment on <em>when to ask for help</em> is weaker. A model that can code but mishandles its tools is a carpenter who can measure but can't hold a saw.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Self-evolving training is real and it works, with limits.</strong> 100+ rounds of generate → test → self-critique → patch produced a model that leads SWE-Pro at 1/50th the input price. The gains follow the classic diminishing-returns curve — recursive self-improvement compounds until the critic stops seeing further than the student.</li>
+<li><strong>Agentic-native beats agentic-adapted.</strong> The stable tool handoffs across 10+ sequential steps are the actual product here, not the benchmark scores. Training the loop, not bolting it on.</li>
+<li><strong>Price is a feature now.</strong> At $0.009 per resolved GitHub issue vs $0.54 on Opus, the frontier's moat is quality and judgment, not raw capability on structured tasks. That's a pricing war the cheap models are winning.</li>
+<li><strong>Trust, but version-stamp.</strong> When the launch announcement and the October review disagree on the same benchmark by 25 points, the number isn't the story — the measurement is. Quote the version or don't quote it at all.</li>
+</ul>
+<p>The companion notebook (<code>selfevolve_minimax.ipynb</code>) reproduces the mechanism toys: the recursive-improvement loop with its plateau, the 12-round self-critique residual-error collapse vs one-shot fine-tuning, the $0.009-vs-$0.54 per-resolved-issue cost math, and the auto-caching dollar check.</p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/selfevolve_minimax.ipynb">selfevolve_minimax.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
