@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Lookup Table That Beat 17 Experts: DeepSeek's Engram and the Second Axis of Sparsity | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Lookup Table That Beat 17 Experts: DeepSeek's Engram and the Second Axis of Sparsity</h1>
+<div class="meta">2026-10-24 &middot; ML architectures / LLM sparsity (DeepSeek-linked Engram conditional memory)</div>
+<article class="post">
+<p>Every frontier model today has the same hidden inefficiency: it <em>recomputes</em> facts it already knows. Ask it for the capital of France and a few billion parameters fire, matrix-multiplying their way to "Paris" — a fact that was fixed in training and will never change. A new paper from a DeepSeek-linked team asks the obvious question nobody built for: why not just look it up?</p>
+<p>The paper — <strong>"Conditional Memory via Scalable Lookup"</strong> (arXiv:2601.07372, submitted January 2026, revised July 2026) — introduces <strong>Engram</strong>, a module that gives transformers a native primitive for knowledge retrieval. Scaled to 27 billion parameters, it beats a strictly iso-parameter, iso-FLOPs mixture-of-experts baseline on every benchmark the authors report. The twist: the biggest wins aren't on knowledge tests. They're on reasoning and code.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine two employees. One is brilliant but has no notebook: every time you ask her a question, she re-derives the answer from first principles. She gets it right, but it costs her full attention every time. The other keeps a well-indexed notebook on her desk: facts she looks up in a second, freeing her brain for the actual hard part of the job.</p>
+<p>Today's transformers are the first employee. Mixture-of-experts (MoE) made them cheaper by waking only a fraction of their parameters per token — that's <strong>conditional computation</strong>. But MoE varies <em>computation</em>, not <em>knowledge</em>. There is no lookup primitive in a transformer, so static facts get simulated by computation, over and over, at full price.</p>
+<p>Engram is the notebook. It's a modernized N-gram embedding: the recent token context is hashed into a deterministic address, and the vector at that address is returned in O(1). No routing decision, no matrix math, no guessing. And because the address is deterministic, the runtime can <strong>prefetch</strong> the entries from host memory before they're needed — the authors report negligible latency overhead. Added capacity that costs almost no speed is rare enough to be the whole story on its own.</p>
+<p><img alt="Two kinds of sparsity in one model: MoE routes tokens to a few experts (conditional computation); Engram hashes token context to a table address (conditional memory). Engram-27B trades 17 routed experts for a 5.7B lookup table at the same total budget, and deterministic addressing lets the runtime prefetch entries for ~zero added latency." src="assets/engram_architecture.png" /></p>
+<h2>How it works: the Sparsity Allocation problem</h2>
+<p>The paper's central framing is a budgeting question. Given a fixed parameter and compute budget, how much goes to neural computation (MoE experts) and how much to static memory (Engram)? The authors formalize this as the <strong>Sparsity Allocation</strong> problem and report a <strong>U-shaped scaling law</strong> for the trade-off: too little memory and you're back to recomputing everything; too much memory and you starve the reasoning backbone. The optimum is interior, not a corner — which means the right answer is a mix, and the mix is measurable.</p>
+<p><img alt="Schematic of the paper's U-shaped Sparsity Allocation law: pretraining loss falls as memory share grows from zero, bottoms out at an interior optimum, then rises again as the reasoning backbone is starved. The optimum is a mix, not a corner solution." src="assets/engram_u_curve.png" /></p>
+<p>Guided by that law, the team built <strong>Engram-27B</strong>: the same 30-block transformer backbone as the MoE-27B baseline (2,560 hidden size, 32-head multi-head latent attention), but with routed experts cut from 72 to 55 and the freed parameters reallocated into a <strong>5.7B Engram memory</strong>. Total: 26.7B parameters, 3.8B activated per token — same budget, different split.</p>
+<p>The mechanism the authors propose for why it works is worth stating plainly, because it's counterintuitive. Engram relieves the backbone's <strong>early layers</strong> of the job of reconstructing static knowledge, which effectively deepens the network available for complex reasoning. And by delegating local token dependencies to lookups, it frees <strong>attention capacity for global context</strong> — the model stops spending its attention budget re-deriving what the last few words imply and spends it on what the whole document means.</p>
+<h2>The numbers: wins where you least expect them</h2>
+<p>A memory module ought to help with knowledge retrieval, and it does — MMLU +3.0, MMLU-Redux +3.4, CMMLU +4.0, C-Eval +4.7. But the larger gains land in general reasoning and code/math:</p>
+<p><img alt="Engram-27B minus MoE-27B, iso-parameter and iso-FLOPs: MMLU +3.0, CMMLU +4.0, C-Eval +4.7, BBH +5.0, ARC-Challenge +3.7, DROP +3.3, HumanEval +3.0, GSM8K +2.2, MATH +2.4 — and Multi-Query Needle-in-Haystack +12.8, the standout." src="assets/engram_benchmark_gains.png" /></p>
+<ul>
+<li><strong>BBH +5.0</strong> (50.9 → 55.9) and <strong>ARC-Challenge +3.7</strong> — hard reasoning, not memorization.</li>
+<li><strong>HumanEval +3.0</strong> (37.8 → 40.8), <strong>GSM8K +2.2</strong>, <strong>MATH +2.4</strong>, <strong>DROP +3.3</strong> — code and math move too.</li>
+<li><strong>Multi-Query Needle-in-Haystack: 84.2 → 97.0 (+12.8)</strong> at 32K context — the long-context payoff of freed attention.</li>
+</ul>
+<p>The efficiency story is just as strong. With only <strong>82% of the pretraining FLOPs</strong> (41K vs 50K steps), Engram-27B already matches the baseline's long-context perplexity while beating it on RULER retrieval. At full budget it pulls further away. And scaling hasn't saturated: <strong>Engram-40B</strong> reduces pretraining loss further, with the gap to baselines still widening at the end of training — the authors read this as memory capacity not yet fully exploited at current token budgets.</p>
+<p><img alt="Multi-Query Needle-in-Haystack accuracy at 32K context: MoE-27B 84.2% at 50K steps; Engram-27B 89.5% at just 41K steps (82% of the FLOPs); Engram-27B 97.0% at 50K steps." src="assets/engram_longcontext.png" /></p>
+<h2>The honest caveat — where this could break</h2>
+<p>Three things to keep in view. First, <strong>these are the authors' numbers, not an independent audit</strong> — the baseline is their own MoE twin, and the paper is from a DeepSeek-affiliated team evaluating a DeepSeek-direction architecture. Second, a lookup table is only as good as its contents: Engram's memory is <strong>static</strong>, learned in training, so it can't absorb new facts after deployment the way a retrieval system over a live database can. It's a better memory for what the model already knows, not a way to teach it something new. Third, the prefetch story depends on infrastructure: deterministic addressing only hides latency if the serving stack actually prefetches from host memory — a software commitment, not a free property of the architecture. The code is open (github.com/deepseek-ai/Engram), so the replication test is available to anyone with the compute.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>MoE solved compute sparsity; Engram attacks memory sparsity.</strong> The two are complementary, not competing — and the paper's U-shaped law says the right split is measurable, not vibes.</li>
+<li><strong>The biggest gains are in reasoning, not recall.</strong> Freeing early layers from static reconstruction effectively deepens the network — BBH +5.0 and HumanEval +3.0 from a lookup table is the result that should change how you think about architecture budgets.</li>
+<li><strong>Long context is where it compounds.</strong> Multi-Query NIAH 84.2 → 97.0, and parity at 82% of the FLOPs — attention freed from local bookkeeping is attention spent on the whole document.</li>
+<li><strong>Deterministic is a feature, not a detail.</strong> O(1) lookup plus prefetching means 5.7B extra parameters at negligible latency cost — the rare case where capacity doesn't bill you in speed.</li>
+<li><strong>Watch the replication.</strong> Engram-40B's still-widening loss gap says this axis isn't saturated. If independent labs confirm the U-curve, "how much of your budget is memory?" becomes a standard architecture question alongside "how many experts?"</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/engram_conditional_memory.ipynb">engram_conditional_memory.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
