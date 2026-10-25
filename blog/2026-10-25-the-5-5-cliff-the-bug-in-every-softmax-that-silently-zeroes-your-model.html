@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The 5.5 Cliff: The Bug in Every Softmax That Silently Zeroes Your Model's Best Gradient | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The 5.5 Cliff: The Bug in Every Softmax That Silently Zeroes Your Model's Best Gradient</h1>
+<div class="meta">2026-10-25 &middot; ML architectures / numerical methods (DeepMind softmax fix, arXiv 2610.31642)</div>
+<article class="post">
+<p>Every model you have ever trained runs through the same two functions: softmax turns raw scores into probabilities, and cross-entropy scores how wrong those probabilities were. On October 22, 2026, three Google DeepMind researchers — Jonathan T. Barron, Dan Gnanapragasam, and Michael Tschannen — posted a paper arguing that every standard implementation of both functions, in JAX, PyTorch, TensorFlow, and the textbooks, contains two numerical bugs. The fix is a short rewrite using <code>softplus</code>, <code>expm1</code>, and <code>log1p</code>. On the paper's grokking benchmark it takes bf16 test accuracy from 93.3% to 100%.</p>
+<p>This is not a story about a new architecture. It is a story about arithmetic — about what happens when you add a very small number to 1.0 and the computer quietly says "that's just 1.0."</p>
+<h2>The ELI5 version</h2>
+<p>Imagine a scoreboard with 10,000 slots, and you can only write numbers with about 7 decimal digits of precision. Your model is winning by a lot: the right answer scores far above everything else. To report how confident it is, you need to write down a number like 0.00000004 — the tiny leftover probability of being wrong.</p>
+<p>The problem: the standard recipe computes that number as <code>1 + 0.00000004</code>, then subtracts 1. On your 7-digit scoreboard, <code>1 + 0.00000004</code> rounds to exactly <code>1</code>, and <code>1 - 1 = 0</code>. The model was 99.999996% confident, and your bookkeeping now says it was 100% confident with zero room left to learn. Worse, the <em>other</em> entries on the scoreboard are computed without adding 1 first, so they keep their tiny values. The gradients no longer sum to zero — the fundamental identity that gradient descent relies on — and the optimizer starts taking steps that are wrong in a specific, structured way.</p>
+<p>The margin where this happens has a name in the paper: the <strong>precision cliff</strong>. It sits at a logit margin of about <strong>5.5 in bf16, 16.6 in fp32, and 36.7 in fp64</strong>. Past the cliff, the gradient on the correct answer is exactly zero while the gradients on the wrong answers are not. The authors call this <strong>Softmax Collapse</strong>.</p>
+<p><img alt="The true target gradient keeps shrinking exponentially as the margin grows, but the standard implementations flatline at exactly zero past their precision cliffs: about 5.5 in bf16, 16.6 in fp32. The fixed form keeps tracking the true gradient all the way to exponent underflow near margin 88." src="assets/softmaxfix_cliff.png" /></p>
+<h2>How it works: the max-shift trick and its one flaw</h2>
+<p>Softmax is <code>exp(z_k) / sum(exp(z_j))</code>, but computed naively it overflows — exp(88) already exceeds fp32's range. So every framework subtracts the largest logit first (the "max-shift" trick, standard since Higham 2002). After shifting, the largest logit becomes 0, its exponential becomes exactly 1, and the denominator becomes <code>1 + e^-m</code>, where <code>m</code> is the margin: how far the winning logit leads the log-sum-exp of the rest.</p>
+<p>Here is the asymmetry that creates the bug. Floating-point numbers are much denser near 0 than near 1: in fp32, values near 0 can be as small as ~10^-38, but anything added to 1.0 vanishes below ~10^-7. So <code>e^-m</code> survives fine in the numerators of the losing classes — those are computed directly, without adding 1 — but the moment it is added to 1.0 in the denominator, it rounds away once <code>m</code> passes the cliff. The loss itself rounds to exactly 0 (<code>log(1) = 0</code>), the target gradient rounds to exactly 0 (<code>q_t - 1 = 1 - 1</code>), and only the losers keep their gradients. The gradient vector sums to a positive number instead of zero.</p>
+<p><img alt="The denominator 1 + e^-m as the margin grows: exact arithmetic keeps shrinking toward 1, but fp32 storage snaps to exactly 1.0 past margin 16.6. Everything downstream — the loss, the target probability, the target gradient — inherits that rounding." src="assets/softmaxfix_denominator.png" /></p>
+<p>Why does a wrong-but-tiny gradient matter? Because of Adam. Adaptive optimizers normalize each gradient by a moving average of its magnitude, so a gradient that should be <code>-4e-8</code> but reads as <code>0</code> while its siblings read as <code>+1.5e-8</code> is not a rounding error Adam can average away — it is a systematic, one-sided distortion, repeated every step. The paper traces two previously mysterious phenomena to exactly this: the recurring <strong>"slingshot" loss spikes</strong> in grokking runs (Thilak et al. 2022) and grokking failures under weight decay (Prieto et al. 2025). Prior workarounds — surrogate losses, gradient projection, casting to fp64 — treated the symptoms. This paper fixes the function.</p>
+<p>The fix is to never add 1 to <code>e^-m</code> directly. For hard-target cross-entropy, replace the target slot with the constant 0, compute the margin <code>m</code> from the <em>other</em> logits only, and return <code>softplus(-m) = log(1 + e^-m)</code> computed in a way that never forms <code>1 + e^-m</code> as a rounded sum. Autodiff then gives the target gradient as the negated sum of the non-target gradients — so the gradients sum to zero by construction, accurate down to exponent underflow at margin ~88. The paper's own example makes it concrete: for logits <code>[9, -9, -9]</code> with target 0, standard JAX/optax return loss 0.0 and target gradient 0.0; the fixed code returns loss 3.046e-8 and gradients <code>[-3.046e-8, 1.523e-8, 1.523e-8]</code> — small, exact, and summing to zero.</p>
+<h2>The second bug: distillation drifts after converging</h2>
+<p>The second bug, <strong>Softmax Cancellation</strong>, hits knowledge distillation — the technique behind most small, deployable models, where a student network learns to match a teacher's probabilities. Standard code computes the student's probabilities with softmax and the teacher's with a separate log-softmax path, then subtracts. When the student approaches the teacher, the true gradient should shrink to zero. Instead it plateaus at a non-zero noise floor, because the two formulas disagree in the last bits of fp32.</p>
+<p>The companion notebook reproduces this directly: for teacher logits <code>[2.0, 0.5, -1.0]</code>, the forward softmax and the exp-of-log-softmax differ by a gradient norm of ~6.2e-8 even when student and teacher logits are <em>identical</em>. A converged student keeps receiving phantom gradients and drifts away from the teacher it already matched. The fix computes <code>q - p</code> directly from the logit difference <code>z_S - z_T</code> in log space (via <code>expm1</code>/<code>log1p</code>), so equal logits give exactly zero by construction.</p>
+<p><img alt="In distillation, the true gradient shrinks linearly as the student approaches the teacher — but the standard two-formula computation bottoms out at an fp32 noise floor near 6e-8 and never reaches zero. The student keeps drifting after it has already converged." src="assets/softmaxfix_cancellation.png" /></p>
+<h2>The numbers: grokking, slingshots, and an Adam equilibrium</h2>
+<p>The paper's headline experiment is a small grokking benchmark — modular addition, <code>a + b mod 31</code>, mean of 5 seeds — and the table is the whole argument in six numbers:</p>
+<p><img alt="Paper Table 1, grokking benchmark (a+b mod 31, 5 seeds, Adam epsilon 1e-8): fixed cross-entropy hits 100% in bf16 and fp32; standard cross-entropy stalls at 93.3% and 94.3%. In fp64 both reach 100% at this epsilon — the bug is a precision story, not a math story." src="assets/softmaxfix_grokking.png" /></p>
+<ul>
+<li><strong>bf16: 93.3% → 100.0% (+6.7pp)</strong> and <strong>fp32: 94.3% → 100.0% (+5.7pp)</strong> at Adam's default epsilon of 1e-8. The standard bf16 run stalls at a final margin of 5.1 — just <em>under</em> its 5.5 cliff, the signature of a run that ground to a halt at the boundary.</li>
+<li><strong>Slingshots eliminated.</strong> The fixed code removes the loss spikes that plagued grokking runs, speeds up grokking with weight decay, and prevents accuracy collapse without weight decay.</li>
+<li><strong>Distillation stops drifting.</strong> Student networks trained with the fixed loss stay at the teacher instead of wandering off after convergence.</li>
+<li><strong>A new equilibrium, not a runaway.</strong> After memorization, the paper shows logit growth is bounded by an equilibrium between weight decay and Adam's epsilon — a clean, testable prediction about what trained logits should look like, replacing the old picture of logits growing without bound until something breaks.</li>
+</ul>
+<h2>The honest caveat — where this could break</h2>
+<p>Three things to keep in view. First, <strong>this is a preprint from October 22, 2026, not yet peer-reviewed</strong>, and its headline numbers come from a small benchmark (modular addition with 5 seeds), not a frontier LLM run — the authors' claim is about the arithmetic, and the arithmetic is checkable in the notebook, but nobody has yet shown a 100B-parameter training run changing its outcome because of this fix. Second, <strong>no framework has adopted it yet</strong>: JAX, PyTorch, and TensorFlow still ship the standard code, so the fix today is a snippet you paste, not a version you upgrade to — and the paper's own framing says it is "most useful for grokking, interpretability, and distillation" rather than a guaranteed speedup for every workload. Third, <strong>the cliff is a low-precision story</strong>: at fp64 and default Adam epsilon, standard and fixed both hit 100%, so teams training in full precision were never exposed in the first place. The exposed population is everyone training in bf16/fp32 with Adam — which is to say, nearly everyone training a frontier model today.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>The bug is in the denominator, not the model.</strong> <code>1 + e^-m</code> rounds to exactly 1.0 past margin 5.5 (bf16) / 16.6 (fp32) / 36.7 (fp64) — and that single rounding zeroes the target gradient while leaving the losers' gradients intact.</li>
+<li><strong>Adam turns a tiny asymmetry into visible damage.</strong> Normalizing per-coordinate gradients amplifies the one-sided error into slingshot spikes and grokking failures. The fix is in the loss function, not the optimizer.</li>
+<li><strong>Distillation has its own floor.</strong> Two separately-rounded probability vectors never quite cancel (~6e-8 in fp32), so converged students drift. Computing the difference from logit differences fixes it by construction.</li>
+<li><strong>The fix is three functions, not a new framework.</strong> <code>softplus</code>/<code>expm1</code>/<code>log1p</code> rewrites of log-softmax, softmax, and cross-entropy — drop-in JAX code in the paper, no meaningful slowdown claimed, gradients summing to zero down to margin ~88.</li>
+<li><strong>Check it yourself.</strong> The companion notebook reproduces both bugs in NumPy: the cliff crossings, the paper's <code>[9, -9, -9]</code> example (loss 3.046e-8 vs 0.0), and the distillation floor. If your training stack runs bf16 with Adam, this is the cheapest audit you will run this year.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/softmaxfix_bugs.ipynb">softmaxfix_bugs.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
