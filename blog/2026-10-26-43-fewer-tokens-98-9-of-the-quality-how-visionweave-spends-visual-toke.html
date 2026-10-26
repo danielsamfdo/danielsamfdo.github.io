@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>43% Fewer Tokens, 98.9% of the Quality: How VisionWeave Spends Visual Tokens Like Money | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>43% Fewer Tokens, 98.9% of the Quality: How VisionWeave Spends Visual Tokens Like Money</h1>
+<div class="meta">2026-10-26 &middot; ML architectures / multimodal AI (VisionWeave elastic visual representations)</div>
+<article class="post">
+<p>A vision-language model reads a picture the way you might read a page: it chops the image into patches and turns every patch into a token. A high-resolution photo or a long video quickly becomes thousands of tokens, and every one of them costs attention compute and KV-cache memory. On October 6, 2026, researchers from Alibaba's Qwen team (Yuan Feng and colleagues, with the University of Science and Technology of China) posted VisionWeave (arXiv:2610.07987), a method that stops spending the same number of tokens everywhere. Built on Qwen3.8-27B, it saves <strong>43.0% of visual tokens on average while retaining 98.9% of native performance across eight benchmarks</strong> — and on an SGLang serving deployment it turns that saving into <strong>2.30x end-to-end throughput</strong>.</p>
+<p>The headline is not the compression ratio. It is <em>where</em> the tokens go: dense, detail-rich regions keep fine-grained tokens, flat regions get a single coarse token, and nothing is ever deleted outright.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine describing a photo to a friend over a phone call that charges by the word. A fixed-rate plan forces you to use the same number of words for the sky as for the street sign: either you waste words on blue nothing, or you blur the sign into illegibility. VisionWeave is the smarter plan. It looks at the picture first and decides, region by region, where detail is worth paying for. The sky gets one word ("blue"). The street sign gets four. The total bill drops 43%, and your friend still reads the sign.</p>
+<p>That is the whole idea, and it is a break from how visual token pruning has worked until now. Pruning <em>deletes</em> tokens it judges unimportant. VisionWeave <em>downgrades</em> them instead: every region stays represented, just at coarser granularity where the content allows it. That distinction is why it survives the tasks that kill pruning methods, as the numbers below show.</p>
+<h2>How it works: a pooler, a router, and a shared map</h2>
+<p>VisionWeave has two learned components, both operating inside the vision encoder before the language model ever sees the tokens.</p>
+<p><strong>1. The gated spatial pooler — the coarse vocabulary.</strong> The native Qwen pipeline merges each 2x2 block of vision patches into one fine-grained token. VisionWeave's pooler takes the same 2x2 neighbourhood and learns a <em>single</em> coarse token for it instead: it normalizes the four patch features, builds a shared context from all four, then computes channel-wise gates — a learned weighted average where the weight on each patch depends on that patch's content, not a fixed mean. Pool again through the native merger and you get a coarse token in the same embedding space as the fine ones, sitting at the geometric centre of its four fine tokens. Each 4x4 patch region therefore has two possible representations: four fine tokens, or one coarse token.</p>
+<p><strong>2. The granularity router — the spending decision.</strong> A learnable query per spatial block probes the vision transformer's features at multiple depths — early layers for low-level detail, later layers for semantics — and scores whether that block needs fine or coarse granularity. A threshold (default 0.5) turns the score into a choice, and the choices are woven into a single mixed-granularity sequence. Crucially, both granularities share one coordinate system (MRoPE, the multimodal rotary position embedding): the coarse token carries the centre coordinate of its four fine tokens, so the language model still knows <em>where</em> everything is, even at mixed resolution.</p>
+<p><strong>3. Self-distillation — the training trick that makes it native.</strong> Rather than bolting this on after training, the authors train it in: the elastic model is distilled from its own native (full-resolution) teacher, with no external teacher and no new labelled data. They validated it on Qwen3.5-4B, then scaled to Qwen3.8-27B at over 30,000 A100 GPU-hours. The threshold is also an inference-time knob: set it to 1.0 and every block goes fine-grained, recovering native performance; lower it to 0.25 and Video-MME savings rise from 54.2% to 66.0% for only a 0.37-point score loss. One model, a dial, no retraining.</p>
+<p><img alt="VisionWeave on Qwen3.8-27B: what survives of the 512-token budget, per benchmark. Documents save little (the text is the content); video saves most (frames repeat themselves)." src="assets/visionweave_budget.png" /></p>
+<p><img alt="Same picture, different token budget: the router spends detail where detail lives. Illustrative schematic, not a paper figure." src="assets/visionweave_weave.png" /></p>
+<h2>The numbers: adaptive savings, and the task that exposes pruning</h2>
+<p>The main comparison uses a 512-token budget per image or frame on Qwen3.8-27B. The savings are content-adaptive in exactly the way the theory predicts: <strong>InfoVQA saves only 16.5%</strong> (infographics are dense text — nearly every region earns its fine tokens) and <strong>DocVQA 27.3%</strong>, while the three video benchmarks save <strong>49.6–54.2%</strong> (consecutive frames repeat most of their content) and <strong>ScreenSpotV2 saves 55.1%</strong> — the GUI grounding task, paradoxically, saves the most while losing only 3.17% (2.99 points). The average across all eight benchmarks: 43.0% saved, 1.08% lost (76.73 vs 77.65 average score; 98.9% retention as the mean of per-benchmark retention).</p>
+<p>Now the comparison that matters. At a <em>fixed</em> 50% savings target, the pruning baselines FastV and VisionZip retain only <strong>88.2% and 87.5%</strong> of native performance on average — and they do not fail gracefully:</p>
+<p><img alt="Fixed pruning collapses on grounding; weaving barely moves. ScreenSpotV2 is the tell: pruning drops the very tokens that mark click targets." src="assets/visionweave_collapse.png" /></p>
+<ul>
+<li><strong>ScreenSpotV2 (GUI grounding):</strong> native 94.42, VisionWeave 91.43 (−3.17%), FastV 49.53 (−47.54%), VisionZip 49.21 (−47.88%). Pruning deletes the token covering the button you are supposed to click; weaving keeps a coarse token there, so the target is still <em>somewhere</em>.</li>
+<li><strong>DocVQA:</strong> native 92.47, VisionWeave 91.33 (−1.23%), FastV 77.05 (−16.68%), VisionZip 76.01 (−17.80%). Pruning drops characters mid-word; weaving represents large text coarsely but completely.</li>
+<li><strong>The ablation proves the router is doing real work, not just picking a lucky budget.</strong> Shuffle the routing scores within each image — same number of coarse blocks, wrong places — and the 27B average falls 5.36 points, with ScreenSpotV2 alone collapsing 32.15 points. <em>Where</em> beats <em>how many</em>.</li>
+</ul>
+<p>And the serving test is what separates this from a benchmark curiosity. On SGLang (2x A100-80GB, BF16, tensor-parallel 2, LongVideoBench at 2 FPS with a 256-frame cap, 1024 tokens per frame), VisionWeave delivers <strong>2.07 vs 0.90 requests/min (2.30x)</strong>, mean time-to-first-token <strong>169.90s → 77.54s (−54.4%)</strong>, and mean time-per-output-token <strong>355.64ms → 140.29ms (−60.6%)</strong>. Tail latency improves too: P95 TTFT −57.1%, P95 TPOT −59.6%. This works on a production serving engine precisely because weaving happens <em>before</em> the LLM, in the encoder — unlike in-LLM pruning, which fights the serving stack's batching and KV-cache assumptions.</p>
+<p><img alt="SGLang, Qwen3.8-27B, long-video workload: the token saving becomes speed. Note the absolute latencies — this is a 256-frame video workload, not a single-image chat." src="assets/visionweave_serving.png" /></p>
+<h2>The honest caveat — where this could break</h2>
+<p>Four things to keep in view. First, <strong>this is a preprint, not yet peer-reviewed, and every number is author-reported</strong> — the eight benchmarks, the SGLang run, the 30,000 GPU-hour training bill all come from the paper, with no independent replication yet. Second, <strong>it is demonstrated on one model family</strong> (Qwen3.5-4B and Qwen3.8-27B, both Alibaba); whether elastic weaving transfers to other vision encoders and MRoPE-free architectures is unproven. Third, <strong>the serving headline is a long-video workload</strong>: 256 frames at 1024 tokens per frame is an extreme sequence, and the 2.30x will shrink on ordinary single-image prompts where vision tokens are a smaller share of the sequence. Fourth, <strong>the training cost is the catch</strong>: 30,000+ A100 GPU-hours to make the capability native means this is a foundation-model-lab technique today, not a fine-tune you run overnight — the inference savings pay it back only at serving scale.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Visual information is unevenly distributed, so token budgets should be too.</strong> VisionWeave saves 16.5% on infographics and 55.1% on GUI grounding — the router, not a fixed ratio, decides.</li>
+<li><strong>Downgrade, don't delete.</strong> Keeping every region represented at coarse granularity is why grounding survives (91.43 vs 49.53 for pruning) and documents stay readable (91.33 vs 77.05).</li>
+<li><strong>Where matters more than how many.</strong> Shuffling the router's choices at the same budget costs 5.36 points on average and 32.15 on grounding — allocation is the capability, not the compression ratio.</li>
+<li><strong>Encoder-side efficiency is serving-compatible efficiency.</strong> Because weaving happens before the LLM, SGLang turns a 43% token cut into 2.30x throughput, −54.4% TTFT, and −60.6% TPOT.</li>
+<li><strong>The price is paid in training, not inference.</strong> 30,000+ A100 GPU-hours to distil the capability natively — worth it for a served frontier model, out of reach as a weekend project.</li>
+<li><strong>Check it yourself.</strong> The companion notebook recomputes every headline number from the paper's Table 4 and Table 5, runs a toy gated pooler that preserves a sharp detail patch where mean pooling blurs it, and shows why attention cost falls faster than the token count (a 43% token cut is a ~67% cut in vision attention pairs).</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/visionweave_token_routing.ipynb">visionweave_token_routing.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
