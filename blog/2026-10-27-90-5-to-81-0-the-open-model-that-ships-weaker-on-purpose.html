@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>90.5% to 81.0%: The Open Model That Ships Weaker on Purpose | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>90.5% to 81.0%: The Open Model That Ships Weaker on Purpose</h1>
+<div class="meta">2026-10-27 &middot; Tech news / LLMs / AI safety (Kimi K3.1 Pro open-weight release + cyber cut)</div>
+<article class="post">
+<p>On October 23, 2026, Moonshot AI released Kimi K3.1 Pro — and then did something no frontier lab has done at launch: it announced, in its own technical blog, that it had deliberately made the model <em>worse</em> at something. Not worse in general. Worse at hacking.</p>
+<p>Moonshot found that cyber-related material in its general training data, plus hacking-style tasks in its reinforcement-learning environments, kept lifting the model's ability to find and exploit software flaws. For a model whose weights it plans to publish for anyone to download — promised "by Nov 4, 2026" — that trajectory was a problem. So it removed the cyber data from mid-training and filtered the cyber tasks out of RL, while keeping general coding tasks. The stated rule: "We aim not to release open weights that would extend the absolute frontier of cyber capability."</p>
+<p>The same release is also, by the independent numbers, the strongest open-weight model ever measured. Both facts are true at once. That tension is the story.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine a locksmith school that publishes its full curriculum online for free — every lock, every technique, including the ones that open other people's doors. Now imagine the school first deletes the chapter on picking high-security locks, publishes the rest, and says publicly: "We removed that chapter on purpose, and here is exactly how much skill we removed."</p>
+<p>That is Kimi K3.1 Pro. The "weights" are the curriculum: the trained numbers that let anyone run the model on their own machines. Open weights mean no API gatekeeper, no usage monitoring, no one who can revoke your copy. That is why the cyber question matters more for this release than for a closed model — once the file is downloaded, the maker cannot take it back or watch how it is used. And that is also why Moonshot's admission is unusual: labs normally trumpet capability gains, not capability removals. Putting a number on the removal — 90.5% to 81.0% — invites exactly the scrutiny this post is doing.</p>
+<h2>How it works: post-training, not a new brain</h2>
+<p>K3.1 Pro is not a new architecture. It is Kimi K3 post-trained much harder: same 3T-class mixture-of-experts base — <strong>2.8 trillion total parameters, about 104 billion active per token</strong> — with a <strong>1,048,576-token context window</strong>, native vision input, and thinking always on (a reasoning-effort setting of low, high, or max, with max as the default).</p>
+<p>That framing matters for interpreting the gains. The jump from K3 to K3.1 Pro is a post-training story: better RL environments, better data curation, and — the cyber cut itself — data <em>removal</em> as a deliberate engineering choice. The model also runs about twice as fast as K3 on Moonshot's API (73.5 tokens/sec in Moonshot's figures), with a Highspeed tier at double the price ($4/$20) for 2–3x the speed.</p>
+<p>The cyber cut worked through two levers, and Moonshot names both: strip cyber-related content from the mid-training corpus, and filter hacking-style tasks out of the RL task mix. General coding tasks stayed. The logic is that exploit skill is not the same skill as coding skill — it is coding skill pointed at a specific target (find the flaw, write the exploit, take over the test machine) and trained on specific data. Remove the target and the data, and the general skill remains while the exploit skill degrades. The numbers say it degraded only partly, which is the honest caveat below.</p>
+<p><img alt="Artificial Analysis Intelligence Index: Kimi K3.1 Pro at 55, fourth of 215 models, 11 points above Kimi K3." src="assets/kimi_index.png" /></p>
+<h2>The numbers: near-frontier, half the price, a dial not a wall</h2>
+<p><strong>The frontier gap is now 3 points.</strong> On Artificial Analysis's independent Intelligence Index, K3.1 Pro scores <strong>55, fourth of 215 models</strong>, just 3 points behind the top score of 58 (Claude Opus 5.5) and ahead of GPT-6 Astra (53). Kimi K3 scored 44. The open-weight gap to the best closed model shrank from 14 points to 3 — <em>if</em> the weights ship, which is still a promise with a date and no published license.</p>
+<p><strong>The agentic gains are broad, not one benchmark.</strong> GDPval-AA (Artificial Analysis's broad agentic ELO) rose <strong>1,534 → 1,846 (+312)</strong>. AutomationBench, which tests agentic SaaS workflows, rose <strong>58% → 73%</strong>. Moonshot's internal hard-hallucination rate fell <strong>23.4% → 8.3%</strong>. Moonshot's own table puts it ahead of GPT-6 Astra on SWE-Marathon, HLE with tools, OfficeQA, and BrowseComp, while trailing on Terminal-Bench Science and OSWorld.</p>
+<p><strong>The price is the story for anyone running agents at volume.</strong> API pricing is <strong>$2 per million input tokens, $10 output, $0.20 cached input</strong> — flat across the full 1M context, no long-context surcharge. That is a third below K3 ($3/$15), the same list price as Sonnet 5.5, and half of Opus 5.5 ($4/$20). Thinking is always on, so output token counts will run higher than a non-reasoning model at the same task unless you turn the effort down — which brings us to the catch.</p>
+<p><img alt="The cyber cut on Moonshot's own xdev-bench-hard test, pass@3. The shipped model still scores 2.4x its predecessor." src="assets/kimi_cyber.png" /></p>
+<p><img alt="List prices per million tokens. The discount is real at the price list — and fragile in practice (see the verbosity trap)." src="assets/kimi_price.png" /></p>
+<h2>The honest caveat — where this could break</h2>
+<p>Four things to keep in view. First, <strong>the cyber cut is a dial, not a wall.</strong> The shipped model still scores <strong>81.0%</strong> on Moonshot's in-house xdev-bench-hard test (exploiting recently disclosed bugs in software like the Linux kernel and Node.js, best of three attempts), down from <strong>90.5%</strong> for the uncut checkpoint — a 9.5-point haircut, 10.5% relative. It still scores <strong>2.4x its predecessor (33.3%)</strong> and sits below DeepSeek V4.1 Flash (85.7%) on the same test, but 81% is not "safe," it is "less dangerous." And the test is Moonshot's own, unreplicated independently. Once weights are public, anyone can fine-tune the removed capability back — press coverage already notes one company planning to strip the safeguards after release. Moonshot's policy constrains Moonshot's release, not the weights' future.</p>
+<p>Second, <strong>the Terminal-Bench headline depends on whose harness you trust.</strong> Moonshot's table reports <strong>65.7%</strong> on Terminal-Bench 4.0, just behind Opus 5.5's 66.4% on the same Claude Code harness; an independent run reported <strong>67.0%</strong>, the highest recorded. Same model, different harness, different headline — the same lesson as the ARC Prize rerun of GPT-6 Astra (62.7% independently vs 99.9% on the vendor's own harness). Never trust a launch-day number without asking who ran the harness.</p>
+<p>Third, <strong>the price discount is fragile against verbosity.</strong> Independent coverage notes K3.1 Pro uses far more output tokens than most models. The notebook's toy task makes it concrete: a task with 50K input and 100K output tokens costs $2.20 on Opus, $1.10 on K3.1 Pro at equal verbosity — exactly half. At 1.5x output verbosity it costs $1.60, only 27% cheaper. Price per token is not price per task, and thinking-always-on makes the gap bigger. Measure cost per <em>solved task</em> on your own workload before switching.</p>
+<p>Fourth, <strong>"open weights" is not "cheap to run."</strong> At 2.8 trillion parameters, the weights alone are roughly 2.8 TB at 1 byte per parameter (5.6 TB at BF16), before KV cache. Self-hosting is data-center-class hardware. For most teams the practical path is the API or a hosted endpoint, where the "open" part buys you portability and auditability, not a free lunch.</p>
+<p><img alt="Kimi K3 to K3.1 Pro, indexed to K3 = 100. Every headline metric moved the right way at once — which is also why the one deliberate regression stands out." src="assets/kimi_gains.png" /></p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>A lab just published its own capability removal, with numbers.</strong> 90.5% → 81.0% on xdev-bench-hard is the first quantified answer to "how much attack capability should a downloadable model have" — and the answer is a dial, not a wall.</li>
+<li><strong>The open-weight frontier gap is 3 points, not 14.</strong> Intelligence Index 55 (from 44), GDPval-AA +312, AutomationBench +15 points — but the weights are still a promise dated Nov 4, with no license published yet.</li>
+<li><strong>Price per token is not price per task.</strong> $2/$10 is half of Opus on the price list; at 1.5x output verbosity the saving shrinks from 50% to 27%. Measure cost per solved task.</li>
+<li><strong>Harness is a variable, not a detail.</strong> Terminal-Bench 4.0 reads 65.7% on Moonshot's harness and 67.0% independently. Ask who ran the harness before quoting a launch number.</li>
+<li><strong>Open weights and cheap to run are different claims.</strong> 2.8T parameters means multi-terabyte weights; the API is the practical path for most teams, and the openness buys portability and auditability.</li>
+<li><strong>Check it yourself.</strong> The companion notebook recomputes every headline number — the 11-point index jump, the 9.5-point cyber cut, the GDPval and hallucination gains, the verbosity trap, and the self-hosting weight math.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/kimi_k31_pro.ipynb">kimi_k31_pro.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
