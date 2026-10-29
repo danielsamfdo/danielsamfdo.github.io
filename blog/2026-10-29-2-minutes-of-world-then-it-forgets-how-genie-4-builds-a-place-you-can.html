@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2 Minutes of World, Then It Forgets: How Genie 4 Builds a Place You Can Walk Through | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>2 Minutes of World, Then It Forgets: How Genie 4 Builds a Place You Can Walk Through</h1>
+<div class="meta">2026-10-29 &middot; GenAI / world models (Google DeepMind Genie 4)</div>
+<article class="post">
+<p>Type a sentence, get a world. Walk through it with your keyboard. Then type another sentence — "make it rain" — and the rain starts while you are standing in it. That is Google DeepMind's Genie 4, announced October 27, 2026 as a research preview for trusted testers. It is the lab's fourth world model in under three years, and the first one where the world talks back: music, ambient sound, and character dialogue are generated with the picture, not dubbed on afterwards. The headline number is a coherence window of roughly <strong>2 minutes</strong> — double Genie 3's roughly 1-minute visual memory, as reported by TechCrunch. The honest version of that number matters more than the number itself: DeepMind's own text says only "a few minutes of continuous interaction," publishes no resolution, frame rate, or benchmark for Genie 4, and warns that details drift. Two minutes of world, then it forgets. That forgetting — and the planner DeepMind bolted inside the loop to fight it — is the real story.</p>
+<h2>The ELI5 version</h2>
+<p>A video generator is a film studio. You describe a scene, it renders a finished clip, and you watch it. Nothing you do mid-clip changes anything, because the clip is already done.</p>
+<p>A world model is a game engine with no game. It renders one frame at a time, and each frame depends on what you just did — which key you pressed, where you looked, what you typed. Press forward and the next frame shows you one step ahead. Type "add a dog" and the next frames include a dog. The model has to remember what the world contains from frame to frame, or the dog changes breed, the room changes shape, and the rain you asked for falls upward. That memory is the whole hard problem. Genie 4's answer is to stop trusting the renderer alone: a second model watches every frame and corrects the course, like a director watching the monitor while the scene is still shooting.</p>
+<h2>How it works: the loop inside the loop</h2>
+<p>Genie 4 is not one model. It is a loop with a supervisor inside it.</p>
+<p>First, you prompt it with text or an image, and it generates an explorable world in real time. You move with keyboard controls and steer with plain-language prompts mid-simulation: change the weather, move the camera, introduce a person or an object. Gemini — DeepMind says — adapts your prompt to fit the running scene, so "make it rain" becomes a change to <em>this</em> world, not a new world.</p>
+<p>Second, Gemini Omni, the lab's multimodal video model, anchors the simulation in how things look and behave in the real world. That is the appearance-and-physics grounding: people who move naturally, collisions and aerodynamics that behave plausibly. DeepMind calls the human rendering its most dramatic leap over Genie 3.</p>
+<p>Third, and most important, Gemini 3.8 Flash runs as a guiding agent inside the loop. As Genie 4 generates the world in real time, Gemini continuously observes the scene, breaks goals into a sequence of steps, reviews incoming frames to check each step succeeded, and replans when you intervene or the world shifts. In the robotics experiment DeepMind showed alongside the release, a Gemini model broke a task into steps that Genie 4 simulated in real time — a way to test robot scenarios in simulation before they happen in the real world. The same pattern — generator plus checker — is what makes the worlds usable for training agents at all: an unchecked world teaches an agent to navigate a dream that keeps changing its own rules.</p>
+<p><img alt="Genie 4's loop: your prompt and keys feed a Gemini guide that plans and checks frames while Genie renders the world and its sound." src="assets/genie4_loop.png" /></p>
+<p>That checker is doing real work, because drift is not a rare bug in world models. It is the default. Every generated frame is a prediction built on previous predictions, so small errors compound: a texture slips, an object moves a few pixels, a character's coat changes color. After enough frames the world has quietly become a different world. DeepMind is candid about it: visual details and object permanence can shift or drift over time, especially in longer sessions, after multiple complex prompt edits, or while navigating. Each prompt edit is a shock to the state — the model must hold everything else constant while changing one thing, and "everything else" is exactly what a frame-by-frame predictor is worst at holding.</p>
+<p><img alt="Toy simulation: without an in-loop guide, coherence collapses under accumulated error and edit shocks; with a checker that detects and replans, it holds." src="assets/genie4_drift.png" /></p>
+<h2>The state of the art: what actually changed since Genie 3</h2>
+<p>The lineage makes the progress — and the limits — concrete. Genie 1 (February 2024) learned 2D worlds from unlabeled internet video at 11 billion parameters. Genie 2 (December 2024) made 3D worlds from a single image, consistent for up to about a minute. Genie 3 (August 2025) was the first real-time Genie: 720p at 24 frames per second, consistent for "a few minutes," with visual memory reaching back about a minute. Genie 4 adds three things on top of that base.</p>
+<p><strong>Native audio is the headline feature, and it is genuinely new for DeepMind.</strong> Genie 4 generates ambient sound, music, and interactive dialogue simultaneously with the visuals — characters converse and react to your inputs or events in the world, in real time. That turns a world from something you watch into something you can talk to. One caveat on the word "first": DeepMind calls Genie 4 its first real-time world model to generate audio natively, and Runway's GWM Worlds 2, released a couple of months earlier, is also playable and also generates audio. Treat "first" as the vendor's claim, not an established fact.</p>
+<p><img alt="Three audio channels — ambient, music, dialogue — generated in the same loop as the visuals, synced to events in the scene." src="assets/genie4_audio.png" /></p>
+<p><strong>Live steering is the second change, and it is the one that changes the product.</strong> Genie 3 had "promptable world events." Genie 4 lets you type free-form changes mid-simulation and has Gemini adapt them to the scene. The difference is between triggering a scripted event and editing a running world. It is also the change most likely to break coherence, which is presumably why the guide agent arrived in the same release: steering without checking is just a faster way to drift.</p>
+<p><strong>Coherence doubled — on the press-reported number.</strong> TechCrunch reports a consistent scene of up to two minutes, double Genie 3's limit. DeepMind's own materials give no number, only "a few minutes," and the Genie 3 baseline is itself fuzzy: DeepMind described Genie 3 as consistent for a few minutes with memory of about one minute, and Project Genie capped each Genie 3 world at 60 seconds, partly for compute cost. So read "2×" as the direction of travel, not a measured benchmark. No independent test exists yet, and DeepMind published no resolution, frame rate, latency, or price for Genie 4 — Genie 3's 720p/24fps figures are the last hard specs in the lineage.</p>
+<p><img alt="Four generations of Genie: the coherence window doubled only at Genie 4, and the 2-minute figure is press-reported, not DeepMind-published." src="assets/genie4_timeline.png" /></p>
+<p>Access is gated, and that gating is part of the story. Genie 4 is a research preview for trusted testers, rolling out next to Google AI Ultra subscribers through Project Genie and to early-access partners of the Gemini API and Google AI Studio. Everything it emits carries SynthID, DeepMind's imperceptible watermark for AI-generated content. The world-model industry is consolidating around this exact moment — World Labs being acquired, Amazon in talks over Decart, Rivian buying simulation in-house — because whoever owns a reliable simulated world owns the cheapest training ground for robots and agents. Genie 4 is DeepMind's bid to stay ahead in that race, and its architecture — generator plus in-loop planner — is the pattern to copy even if you never touch the model itself.</p>
+<h2>The honest caveat — where this could break</h2>
+<p>Four things to keep in view. First, <strong>every capability claim so far comes from DeepMind itself.</strong> There are no published benchmarks, no independent evaluations, and no resolution or frame-rate specs for Genie 4. The 2-minute figure is TechCrunch's reporting, not DeepMind's documentation. Second, <strong>drift is acknowledged, not solved.</strong> Longer sessions, repeated complex edits, and navigation all still degrade the world; complex physics, accurate real-time audio, readable text, and spatial accuracy are listed as open research problems. Third, <strong>the "first with native audio" claim is contested</strong> by Runway's GWM Worlds 2 shipping playable worlds with audio months earlier. Fourth, <strong>the guide-agent pattern has a cost nobody has published</strong>: running a reasoning model to observe and check every frame, on top of the renderer, is presumably expensive — which may be exactly why Project Genie capped Genie 3 worlds at 60 seconds and why Genie 4's pricing and rate limits are still undisclosed.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>A world model is not a video generator.</strong> It renders one frame at a time, conditioned on your actions — a place you move through, not a clip you watch.</li>
+<li><strong>Genie 4's real invention is the loop inside the loop.</strong> Gemini 3.8 Flash plans, checks each frame, and replans when you intervene; Gemini Omni grounds appearance and behavior. The renderer alone drifts; the checker is what holds the world together.</li>
+<li><strong>Native audio changes the interaction, not just the immersion.</strong> Ambient sound, music, and dialogue generated with the picture mean characters can converse and react in real time — the world becomes something you can talk to.</li>
+<li><strong>Coherence is still measured in minutes, not hours.</strong> Roughly 2 minutes of consistent scene (press-reported, double Genie 3's ~1-minute memory) is enough for a scene to develop — a character crossing a room, weather turning, a conversation going somewhere — and nowhere near a persistent world.</li>
+<li><strong>Trust the architecture, verify the numbers.</strong> Generator-plus-checker is the pattern worth stealing for any agent or robot training loop; the 2-minute, "first," and realism claims all await independent testing.</li>
+<li><strong>Check it yourself.</strong> The companion notebook simulates the whole loop in miniature — latent-state drift, prompt-edit shocks, a guide agent that detects and corrects, steering as state surgery, and the plan-check-replan cycle for robot training.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/genie4_world_model.ipynb">genie4_world_model.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
