@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Mean Lied: How a Second Statistic Fixed Long-Context Memory | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>The Mean Lied: How a Second Statistic Fixed Long-Context Memory</h1>
+<div class="meta">2026-10-30 &middot; ML architectures / linear attention (Princeton MERLIN, arXiv 2610.37645)</div>
+<article class="post">
+<p>Two document chunks walk into a model. Both score 0.20 on average relevance to your question. One contains the exact fact you need; the other contains nothing but vaguely related words. A router that only looks at the average cannot tell them apart — it splits its attention 50/50 and dilutes the answer with noise. That is the quiet flaw inside today's most memory-efficient language models, and a Princeton paper posted October 27, 2026 fixes it with a statistic you learned in high school: variance.</p>
+<p>The paper is "Multi-State Linear Attention with Generalized Second-Order Routing" (arXiv:2610.37645), from Hee Seung Hwang, Sanghyuk Chun, Xindi Wu, and Olga Russakovsky at Princeton, with Zhiwei Deng at Google DeepMind. Its method, Merlin (MomEnt Routing for multi-state LINear attention), lifts long-context scores by up to <strong>13.5%</strong> on LongBench and <strong>8.3%</strong> on RULER — and beats baselines that use <strong>4× more memory</strong>. No new parameters worth mentioning, no bigger state, no extra memory. Just a second moment.</p>
+<h2>The ELI5 version</h2>
+<p>A normal Transformer remembers everything you ever said to it, word for word — like keeping every receipt in a shoebox. That works until the shoebox gets huge: reading it costs time that grows with the square of its size.</p>
+<p>Linear attention models throw the shoebox away and keep a single summary page instead. Each new word updates the summary; nothing is stored individually. Memory stays constant no matter how long the conversation gets. The price: the summary blurs. Ask about something from 10,000 words ago and the answer may have been averaged away.</p>
+<p>Multi-state linear attention is the compromise: chop the context into segments — 256 tokens each in this paper — and keep one summary page per segment. At 16,000 tokens of context, that is 64 pages. The model then has to decide, for each question, which pages matter. That decision is called aggregation, and it is where the mean lies.</p>
+<p>Old aggregation methods weight each segment by recency (newer = more important) or by the <em>average</em> similarity between the question and the segment's words. The average is the trap. A segment with one perfect match buried among junk has the same average as a segment of uniform mediocrity. The model cannot see the difference, so it cannot find the needle.</p>
+<p>Merlin's fix: keep two summaries per segment instead of one — the average direction of its keys (first moment) <em>and</em> how spread out they are (second moment). From those two, a query recovers both the mean alignment <em>and</em> the variance of its alignment with each segment. High variance means "something in here matches sharply." The router then mixes the two signals with a learned gate and picks the segment that actually contains the answer.</p>
+<h2>How it works: the loop, in three steps</h2>
+<p><strong>Step 1 — Segment and compress.</strong> The context is split into uniform 256-token segments. Each segment gets its own recurrent memory state (the usual linear-attention state, a matrix of key-value outer products) plus two small summaries of its keys: μ, the mean key vector, and Σ, the average of the key outer products. Both are fixed-size — their dimensions depend only on a compact routing dimension d_r, smaller than the model dimension d — so per-segment cost stays flat as the segment grows.</p>
+<p><img alt="How multi-state linear attention with Merlin routing is organized: the context is split into segments, each with its own state and key moments, and the query routes across them." src="assets/merlin_msla.png" /></p>
+<p><strong>Step 2 — Score each segment twice.</strong> For a query q′, Merlin computes the mean alignment r^μ = μᵀq′ and the variance r^Σ = q′ᵀΣq′ − (r^μ)². That second formula is just the definition of variance — E[x²] − E[x]² — computed from the stored moments without ever revisiting the segment's tokens. The toy below shows why it matters: two segments with identical mean alignment 0.20 get identical weights from a mean-only router, while Merlin gives the sharp segment 69% of the weight.</p>
+<p><img alt="Two segments with identical mean alignment but very different variance: mean-only routing splits 50/50, Merlin favors the segment with the sharp match." src="assets/merlin_mean_vs_variance.png" /></p>
+<p><strong>Step 3 — Gate and mix.</strong> The final weight λ is a gated mixture of two separately softmaxed scores: λ = γ·softmax(τ_μ·r^μ) + (1−γ)·softmax(τ_Σ·r^Σ), where γ is a learned per-token gate and the τ's are learnable temperatures. The model learns, per token, whether to trust the average or the spread.</p>
+<p>The elegant part is <em>why</em> this works, and it is not a hack. If you took full softmax attention and grouped its mass by segment, the log-evidence for a segment expands (a cumulant expansion around temperature zero) into exactly two leading terms: the mean alignment and half the variance. Mean-only routing is a first-order approximation to softmax attention; Merlin is the second-order one. The paper's title says it plainly: "generalized second-order routing." First-order routing throws away the term that distinguishes a needle from noise.</p>
+<h2>The state of the art: what the numbers actually say</h2>
+<p>The authors converted two small backbones — Gated DeltaNet-1.3B (pretrained on 50B tokens) and Mamba-2-780M — into multi-state variants with two stages of mid-training (2B tokens, then 60M tokens of RULER-style data), then evaluated at 16K context against three baselines: Vanilla (single-state, no segmentation), Position (recency weights), and Meanpool (mean-only routing).</p>
+<p><img alt="RULER average scores at 16K context: Merlin leads on both backbones." src="assets/merlin_results.png" /></p>
+<p>On RULER's needle-in-a-haystack and QA tasks, Merlin averages <strong>62.7</strong> for Gated DeltaNet vs 57.9 for Meanpool (+8.3% relative) and <strong>76.2</strong> for Mamba-2 vs 71.2 (+7.0%). The single-task gaps are starker: on S-NIAH-3, the hardest single-needle variant, Gated DeltaNet jumps from 21.2 (Meanpool) to 47.0, and Mamba-2 from 66.2 to 96.0. That is exactly the needle-finding failure mode the variance term is supposed to fix, showing up in the numbers.</p>
+<p>On LongBench's eleven tasks (single-doc QA, multi-doc QA, summarization, few-shot learning, all under 16K tokens), Merlin averages 21.9 vs 19.3 for Gated DeltaNet (+13.5%) and 20.6 vs 18.4 for Mamba-2 (+12.0%), with the strongest gains on QA tasks. And the headline that matters for deployment: Merlin beats baselines that consume <strong>4× more memory</strong> — the second moment buys more accuracy than quadrupling the state.</p>
+<p><img alt="Memory scaling, schematic: full attention's KV cache grows with every token; a single state is flat but lossy; multi-state grows slowly, one fixed-size state per segment." src="assets/merlin_memory.png" /></p>
+<p>Merlin also lands in a crowded 2026 wave attacking the same problem — how to make a compressed recurrent state more expressive without giving up constant memory. The paper sits alongside Dynamic Linear Attention (ICML 2026, semantic segment boundaries), HOLA (a small exact KV cache bolted onto linear attention), and MARCH (checkpointed states with content-derived retrieval keys). Merlin's bet is the narrowest and cheapest: don't change what you store, change how you route over it.</p>
+<h2>The honest caveat — where this could break</h2>
+<p>Four things to keep in view. First, <strong>the scale is small and the context is short.</strong> Both backbones are under 1.3B parameters and every evaluation is at 16K tokens. Whether second-order routing holds its edge at 70B parameters and 1M-token contexts — where the segment count grows 64× — is untested. Second, <strong>mid-training is required.</strong> You cannot bolt Merlin onto an existing model; the backbones needed 2B + 60M tokens of continued training to learn to use the new routing. Third, <strong>segments are dumb.</strong> Uniform 256-token chunks cut mid-sentence and mid-thought; the paper studies aggregation, not separation, and a smarter segmenter might matter as much as a smarter router. Fourth, <strong>this is a preprint.</strong> Posted October 27, 2026, not peer-reviewed, and the strongest baseline comparisons are against the authors' own mid-training recipe — independent replication at frontier scale is the next step, not a formality.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>The average is a lossy summary of relevance.</strong> A segment with one perfect match and a segment of uniform mediocrity can share the same mean alignment — and mean-only routers cannot tell them apart.</li>
+<li><strong>Variance is the missing signal.</strong> Merlin stores the first and second moments of each segment's keys, recovering mean <em>and</em> spread of query alignment without revisiting tokens.</li>
+<li><strong>Second-order routing is a principled approximation, not a trick.</strong> Grouped softmax attention expands into mean + variance terms; Merlin keeps both, mean-only routing keeps one.</li>
+<li><strong>The gains are real and cheap: +8.3%/+7.0% on RULER, +13.5%/+12.0% on LongBench, beating 4×-memory baselines with no extra memory.</strong> The needle tasks (S-NIAH-3: 21.2 → 47.0, 66.2 → 96.0) show the mechanism working as advertised.</li>
+<li><strong>The open question is scale.</strong> 1.3B parameters and 16K contexts prove the idea; frontier models and million-token contexts will prove the product.</li>
+<li><strong>Check it yourself.</strong> The companion notebook reproduces the core demo in miniature: two segments, identical means, different variances — mean-only routing splits 50/50, Merlin picks the needle — plus the grouped-softmax expansion and the paper's headline numbers recomputed.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/merlin_moment_routing.ipynb">merlin_moment_routing.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
