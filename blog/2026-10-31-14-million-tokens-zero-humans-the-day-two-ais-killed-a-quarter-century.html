@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14 Million Tokens, Zero Humans: The Day Two AIs Killed a Quarter-Century-Old Conjecture | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>14 Million Tokens, Zero Humans: The Day Two AIs Killed a Quarter-Century-Old Conjecture</h1>
+<div class="meta">2026-10-31 &middot; AI for science / complexity theory (ETH refutation — OpenAI + Anthropic, Oct 26-27)</div>
+<article class="post">
+<p>On October 16, 2026, two AI models — one at OpenAI, one at Anthropic — independently found the same impossible result. Ten days later, both labs published it. The claim: a deterministic algorithm that counts the solutions to 3-SAT in subexponential time, refuting the Exponential Time Hypothesis (ETH), a conjecture that has anchored fine-grained complexity theory for a quarter century. One paper is credited to an author named "Claude." The other was formalized in the Lean proof checker the day after it was found. And, by Anthropic's own appendix, no person is known to have checked the full proof.</p>
+<p>This post explains what was claimed, how the two algorithms work, why the result changes theory but nothing practical — and why the most interesting part is not the theorem, but the provenance line.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine a puzzle: 100 light switches, and a list of rules like "switch 3 ON, or switch 7 OFF, or switch 12 ON." Find a setting that satisfies every rule. Checking a proposed setting is trivial — one pass through the rules. Finding one is the hard part: the dumb method tries all 2^100 settings, about 1.3 × 10^30 of them. That is more than the number of seconds since the Big Bang, squared.</p>
+<p>3-SAT is that puzzle, formalized: n Boolean variables, clauses of at most three literals each, satisfy them all. Since the 1980s, clever algorithms have shrunk the base of the exponent — from 2^n down to about 1.328^n for deterministic algorithms and 1.308^n for randomized ones — but never below exponential. The Exponential Time Hypothesis, proposed by Russell Impagliazzo and Ramamohan Paturi, bet that this was fundamental: for some fixed δ &gt; 0, 3-SAT needs 2^(δn) time. No algorithm could push the exponent's coefficient to zero.</p>
+<p>The October claims say the coefficient does go to zero. The new bound is 2^O(n log log n / √log n): the per-variable exponent is log log n / √log n, which shrinks as n grows. Eventually — at absurdly large n — it beats 2^(δn) for every fixed δ. That is exactly what ETH ruled out.</p>
+<p>And the algorithm does something harder than deciding satisfiability: it <em>counts</em> the satisfying assignments (#3-SAT). Counting is at least as hard as deciding, so a counting algorithm that breaks the barrier breaks it with margin.</p>
+<h2>How it works: two routes to the same bound</h2>
+<p>The two labs describe different machinery, converging on the same asymptotic bound. Neither is a faster brute force; both are algebra.</p>
+<p><strong>The OpenAI route: a dial, easy points, and interpolation.</strong> Write the number of satisfying assignments as a polynomial in a dial variable T. At T = 0 sits the formula you actually care about. Deform the formula (T ≠ 0) so that, once a handful of shared measurements are fixed, it falls apart into small independent groups that are easy to count. Collect Taylor coefficients at those easy points, then recover the exact count at T = 0 by Hermite interpolation — the same trick as reconstructing a curve from its values and slopes. The hard part is keeping the polynomial's degree low: a matrix built from commuting swaps, plus an interpolated alternating sign, does that job. Sparsification, clause copying, parity tests from Tanner codes, and Beigel–Tarui polynomials handle the general case.</p>
+<p><strong>The Anthropic route: tensor networks and rank.</strong> Route the counting problem through sums of products represented as tensor networks, and bound their rank. The key move is decomposing a crossing into a signed sum of pieces, so different terms can use different contraction orders — escaping a more restricted single-contraction-tree model that would cap the savings. Rank bounds on those pieces are what push the exponent's coefficient toward zero.</p>
+<p><strong>Then the machine checks itself.</strong> Both proofs were formalized in Lean 4, the proof assistant that verifies each logical step mechanically rather than trusting human review. Anthropic's development spans 1,050 Lean modules built on Mathlib, uses only Lean's three standard axioms, and is rechecked by a second, independently written kernel (nanoda). OpenAI's Lean formalization was completed October 17, the day after discovery — though commentators note it covers a slightly weaker bound than the manuscript's headline claim.</p>
+<p><img alt="The growth race: brute force, the prior best deterministic and randomized algorithms, and the claimed subexponential bound." src="assets/eth_growth_race.png" /></p>
+<h2>The state of the art: what the numbers actually say</h2>
+<p>The timeline is the story in miniature:</p>
+<p><img alt="Eleven days from discovery to two public claims." src="assets/eth_timeline.png" /></p>
+<ul>
+<li><strong>October 16:</strong> an internal OpenAI model finds its proof; an internal Claude research model finds the core algorithm with <strong>14 million output tokens and no human input</strong>, per Anthropic's provenance note. Same day, same conclusion, neither lab knowing about the other.</li>
+<li><strong>October 26:</strong> OpenAI announces three AI-produced results — the ETH refutation, a harmonic-analysis result, and a quantum-field-theory existence proof — with a <strong>67-page</strong> manuscript, "The Exponential Time Hypothesis Is False," dated October 17 and revised October 25.</li>
+<li><strong>October 27, 03:07 UTC:</strong> Anthropic posts its <strong>49-page</strong> paper, "A 2^o(n) Time Algorithm for 3-SAT," credited simply to "Claude, Anthropic," with the Lean 4 formalization on GitHub.</li>
+</ul>
+<p>The exponent tells the practical story. The claimed coefficient, log log n / √log n, decays — but at a glacial pace:</p>
+<p><img alt="The exponent coefficient shrinks toward zero, crossing the prior best only at astronomically large n." src="assets/eth_exponent_decay.png" /></p>
+<p>At n = 10^6 variables the effective base is still 1.63, worse than the old 1.328. My own illustrative arithmetic (the papers hide their constants inside the big-O) puts the crossover against 1.328^n at roughly n = 10^65 with constant 1 — and at n = 10^9278 with constant 6, far beyond the ~10^80 atoms in the observable universe. One explainer puts the brute-force crossover above 10^108 variables; the paper itself says the approach seems unlikely to help on any formula with fewer than about 10 million variables, while brute force is already impractical at 100. This is a "galactic algorithm": a theorem about asymptotics, not a tool anyone will ever run.</p>
+<p>The theoretical fallout, if the proofs hold, is large. SETH — the Strong Exponential Time Hypothesis — implies ETH, so it falls too. Earlier work then yields subexponential algorithms in theory for Independent Set, Clique, Vertex Cover, and Dominating Set, plus a new circuit lower bound for the class E^NP. Anthropic's literature search found <strong>800+ papers</strong> with results relying on ETH or an assumption implying it; those results now rest on a broken foundation and need re-examination. The review is led by the conjecture's own authors — Impagliazzo, Paturi, and MIT's Ryan Williams — who stress their involvement is not certification.</p>
+<p><img alt="What the claim would change, and what it would not." src="assets/eth_fallout.png" /></p>
+<h2>The honest caveat — where this could break</h2>
+<p>Four things to keep in view. First, <strong>neither proof is peer-reviewed or independently certified.</strong> Lean verifies that the stated propositions follow from the axioms; it does not verify that the formal statement says what the paper says. Anthropic is explicit: "Lean checks the proofs, but no machine checks that this file says what the paper says," and its appendix notes the development "was written by AI models and reviewed by other instances of the same models" with no person known to have checked it. Second, <strong>the headline bound and the checked bound may differ.</strong> OpenAI's Lean proof reportedly covers a slightly weaker bound than its manuscript; the sharper claim rests on the manuscript's own argument. Third, <strong>nothing practical changes.</strong> This is not P = NP — a subexponential algorithm is still vastly slower than polynomial — not a faster SAT solver, and not a cryptography break; reductions to 3-SAT inflate the input size, wiping out the gain for general NP problems. Fourth, <strong>the coincidence deserves scrutiny, not awe.</strong> Two labs finding the same result on the same day is either a remarkable convergence or a sign of shared training-data lineage; the papers themselves note the independence claim, but independence of two frontier models trained on overlapping corpora is a claim, not a fact.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>ETH said 3-SAT needs 2^(δn) for some fixed δ &gt; 0.</strong> The October claims give a deterministic counting algorithm in 2^O(n log log n / √log n) — the coefficient tends to zero, which is exactly what ETH forbade.</li>
+<li><strong>Two labs, one day, one answer.</strong> OpenAI (67 pages, announced Oct 26) and Anthropic's Claude (49 pages, posted Oct 27) both trace their core algorithm to October 16; Anthropic's provenance note specifies 14 million output tokens with no human input.</li>
+<li><strong>The mechanism is algebra, not search.</strong> A deform-and-interpolate polynomial argument on one side, tensor-network rank bounds on the other — both counting assignments, not just deciding satisfiability.</li>
+<li><strong>The proof is machine-checked and human-unread.</strong> Lean 4 formalizations (1,050 modules on Anthropic's side, second-kernel recheck) verify the logic — but no machine checks the statement matches the paper, and no person is known to have checked Anthropic's full development.</li>
+<li><strong>The practical impact is zero and the theoretical impact is huge.</strong> Crossover against the old 1.328^n sits near 10^65 variables even with constant 1 (10^9278 with constant 6, by my illustrative arithmetic); meanwhile SETH falls, 800+ ETH-dependent papers need revisiting, and a new E^NP lower bound appears.</li>
+<li><strong>Check it yourself.</strong> The companion notebook recomputes the growth race, the decaying exponent coefficient, both illustrative crossovers, and a brute-force #3-SAT count on a toy formula — the problem the papers claim to solve subexponentially.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/eth_conjecture.ipynb">eth_conjecture.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
