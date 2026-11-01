@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stop Typing One Token at a Time: The Coarse-to-Fine Model That's 31× Faster | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Stop Typing One Token at a Time: The Coarse-to-Fine Model That's 31× Faster</h1>
+<div class="meta">2026-11-01 &middot; ML architectures / generative modeling (Next-Concept Modeling, arXiv 2610.14162)</div>
+<article class="post">
+<p>Every language model you have ever used writes the same way: one token, then the next, then the next, in a strict left-to-right line. A 500-word answer takes hundreds of sequential steps, and no amount of GPU parallelism changes that — step 200 cannot start until step 199 finishes. Diffusion language models broke the line by refining all positions at once, but they pay for it: every denoising pass processes the full sequence, and cutting passes degrades quality fast.</p>
+<p>A paper from Stanford's Hazy Research lab and Together AI, posted to arXiv on October 9, 2026, proposes a third way. Next-Concept Modeling (NCM) does not predict tokens at all. It predicts a hierarchy of discrete codes, coarse to fine: first a handful of codes that pin down the gist, then progressively more codes that fill in the detail — each level predicted fully in parallel. At matched ~100M-parameter scale, it beats the strongest diffusion baseline on LM1B while running 21× faster, matches it on OpenWebText at 10× faster, and matches its summarization quality on XSum at 31× faster. It also trains on 4–5× fewer tokens.</p>
+<p>This post explains the trick, why it works, and where it stops short of replacing your favorite model.</p>
+<h2>The ELI5 version</h2>
+<p>Think about how a human writes an essay. Nobody composes word by word from a blank page with no plan. You sketch an outline first — the argument in a few bullet points — then expand each bullet into paragraphs, then polish sentences. The outline is cheap: a few decisions that constrain everything after. The detail work is where the words pile up, but by then the structure is already fixed.</p>
+<p>Today's LLMs do the opposite. Next-token prediction is writing with no outline: every word is a fresh gamble conditioned on everything before it, and a wrong turn early can only be patched by later words, never revised. Diffusion models are the other extreme: they draft the whole essay at once and revise it dozens of times, but every revision pass re-reads the entire draft, so each pass is expensive.</p>
+<p>NCM is the outline-first writer, formalized. Stage one trains a compressor — a multiscale residual VQ-VAE — that turns any text into a stack of code levels. Level 1 is a short sequence of codes capturing the global structure; each later level is a longer sequence capturing what the previous levels got wrong. Stage two trains a transformer that generates the levels in order, predicting all codes within a level in parallel. Generating a passage takes as many sequential steps as there are levels — a handful — not as many as there are tokens.</p>
+<h2>How it works: two stages, one short path</h2>
+<p><strong>Stage 1: learn the hierarchy.</strong> A VQ-VAE quantizes continuous vectors to the nearest entry in a learned codebook — the same idea behind neural audio codecs. Residual quantization repeats the trick on the leftover error: level 1 approximates the text, level 2 quantizes the error level 1 left behind, level 3 quantizes what remains, and so on. The result is a hierarchy from short-and-coarse to long-and-fine, with a decoder that maps the full stack back to text. The authors note the hard part for text, versus images: there is no natural downsampling (an image halves cleanly; a sentence does not), and reconstruction must be near-exact — one wrong token can flip meaning, break code, or invalidate a Sudoku solution.</p>
+<p><strong>Stage 2: generate level by level.</strong> The transformer is trained to predict all codes of level k in parallel, conditioned on the cumulative reconstruction of levels 1 through k−1. Training predicts all levels in a single forward pass with a cross-entropy loss; generation walks the levels sequentially, coarse to fine. The paper's own translation trace shows the behavior: coarse levels fix the high-level idea, finer levels fill in and correct the content.</p>
+<p>Why this is fast comes down to two multiplications. Diffusion needs many passes over the full sequence length L. NCM needs K passes, where K is much smaller than L — and the early passes process short coarse sequences, not the full length. Fewer steps, and cheaper steps.</p>
+<p><img alt="Three ways to generate text: one token per step, all positions refined for many steps, or a few levels in parallel." src="assets/ncm_paradigms.png" /></p>
+<h2>The state of the art: what the numbers actually say</h2>
+<p>The evaluation is at research scale — ~100M parameters, against discrete-diffusion, flow-based, and hybrid baselines — not against frontier models. Within that frame, the results are striking:</p>
+<p><img alt="Wall-clock speedups at matched scale, with equal or better quality." src="assets/ncm_speedups.png" /></p>
+<ul>
+<li><strong>LM1B (unconditional):</strong> better generative perplexity than the strongest diffusion baseline, <strong>21× faster</strong> wall-clock.</li>
+<li><strong>OpenWebText (unconditional):</strong> competitive quality, <strong>10× faster</strong>.</li>
+<li><strong>XSum (summarization):</strong> matches the strongest diffusion baseline's ROUGE-L, <strong>31× faster</strong>. Spend the saved time on more candidates and Minimum Bayes Risk selection, and NCM beats that baseline's ROUGE-L by about <strong>7%</strong> within the same sampling-time budget.</li>
+<li><strong>Training budget:</strong> competitive quality with <strong>4–5× fewer training tokens</strong> than strong diffusion baselines, counting both tokenizer and generator training. The baselines it beats train for 1M steps — over 500B tokens on OpenWebText.</li>
+<li><strong>Step counts:</strong> 4–11× fewer function evaluations on unconditional generation, 6–16× fewer on conditional generation, with sample diversity (unigram entropy) staying close to the data — the failure mode that usually punishes few-step diffusion.</li>
+</ul>
+<p><img alt="Each level corrects the residual of the last; code counts grow as the error falls." src="assets/ncm_hierarchy.png" /></p>
+<p>The reasoning result is the one that surprised me most. On Sudoku — a task where one wrong digit kills the whole board — NCM beats both autoregressive and diffusion baselines at every difficulty level, using fewer function evaluations than any of them:</p>
+<p><img alt="Sudoku accuracy by difficulty, NCM vs the best diffusion baseline." src="assets/ncm_sudoku.png" /></p>
+<p>Hard boards: <strong>86.1%</strong> for NCM (25M parameters, 12 function evaluations) versus <strong>81.3%</strong> for the best diffusion baseline (29M, 16 evaluations). The gap widens with difficulty — 1.8 points on easy, 3.7 on medium, 4.8 on hard — which is exactly the pattern you expect if the coarse levels are doing real planning: the harder the constraint problem, the more the outline matters.</p>
+<p>The lineage is worth noting. Next-scale prediction already won in images (VAR-style models generate an image scale by scale), and concept-level modeling has been circling text for years — MEGABYTE's byte patches, H-Net's learned chunks, Large Concept Models' sentence representations. NCM's contribution is making the hierarchy discrete, residual, and generative for text, with a decoder accurate enough that the coarse-to-fine path survives contact with exact-match tasks like Sudoku.</p>
+<h2>The honest caveat — where this could break</h2>
+<p>Three things to keep in view. First, <strong>scale.</strong> Everything here is ~100M parameters on LM1B, OpenWebText, XSum, and Sudoku. The paper shows preliminary scaling — bigger NCM improves LM1B quality at fixed training budget — but nothing at the billion-parameter frontier, and no evidence yet that the hierarchy stays stable when sequences get long and vocabularies get large. Second, <strong>the tokenizer is a second model to train and get right.</strong> The whole scheme stands or falls on the VQ-VAE's reconstruction: if the coarse levels smuggle in ambiguity the fine levels cannot resolve, generation quality caps out no matter how good the transformer is. Third, <strong>diffusion is not standing still.</strong> Few-step samplers, distillation, and block-autoregressive diffusion (which recovers KV caching at the cost of some parallelism) are all attacking the same latency problem from the other side; NCM's 10–31× lead is measured against unguided, undistilled baselines, and the distilled-diffusion comparison is the one that matters for production.</p>
+<p>None of that dims the core idea. Next-token prediction has survived for years partly because nobody had a better generation order for text. NCM says the order is the variable: generate the plan, then the details, in a handful of parallel steps. If it scales, the "one token at a time" era ends not with a faster chip, but with a shorter path.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Today's LLMs generate one token per step; diffusion models refine all positions for many full-sequence passes.</strong> NCM generates a hierarchy of discrete codes, one level per step, all codes within a level in parallel — so steps equal levels (K), not tokens (L).</li>
+<li><strong>The numbers, at ~100M scale:</strong> 21× faster than the strongest diffusion baseline on LM1B with better perplexity, 10× on OpenWebText at competitive quality, 31× on XSum at matched ROUGE-L, and 4–5× fewer training tokens overall.</li>
+<li><strong>Reasoning is the tell.</strong> On Sudoku, NCM beats autoregressive and diffusion baselines at every difficulty (hard: 86.1% vs 81.3%) with fewer function evaluations — the coarse levels act as a plan.</li>
+<li><strong>The mechanism is two stages:</strong> a multiscale residual VQ-VAE learns the coarse-to-fine code hierarchy, then a transformer generates it level by level, conditioned on the cumulative reconstruction so far.</li>
+<li><strong>The open questions are scale and the tokenizer.</strong> No billion-parameter results yet, and the whole approach depends on near-exact reconstruction from the code hierarchy. The distilled-diffusion comparison — not the unguided-baseline one — is the number to watch next.</li>
+<li><strong>Check it yourself.</strong> The companion notebook replays residual quantization on a toy vector (error falling level by level), recomputes the step-count and speedup arithmetic, and verifies the Sudoku margins from the paper's table.</li>
+</ul>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/ncm_coarse_to_fine.ipynb">ncm_coarse_to_fine.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
