@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10 Hours to 3: How KAIST's CluSTER Picks the 31% of Data That Actually Teaches | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>10 Hours to 3: How KAIST's CluSTER Picks the 31% of Data That Actually Teaches</h1>
+<div class="meta">2026-11-03 &middot; AI training infra / data selection (KAIST CluSTER, EMNLP 2026)</div>
+<article class="post">
+<p>On November 2, 2026, KAIST announced a fine-tuning method called CluSTER that cut a 10-hour training run to about 3 hours — a 69.6% time saving — while keeping measured performance nearly unchanged. The trick was not a faster chip, a bigger cluster, or a smaller model. It was choosing better data: the models kept their scores while training on only about 31% of the full dataset.</p>
+<p>CluSTER — Clustering-Based Balanced Sampling and Allocation with Data Parallelism for High-Performance Fine-Tuning — was presented in October 2026 at EMNLP 2026 (paper: arXiv 2609.12584, first author Hyunjin Kim, corresponding author Professor Jae-Gil Lee, KAIST School of Computing). The team tested it on models of about 7 billion and 13 billion parameters, on three datasets from coding and medicine, across eight benchmarks, mostly on four GPUs with an eight-GPU test as well.</p>
+<p>This post explains what CluSTER actually does, why grouping by topic is the wrong grouping, and where the headline number stops applying.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine studying for an exam with a 1,000-question practice bank. Half the questions are the same skill wearing different clothes: solve for x, but with different numbers, different names, different stories. Doing all 500 teaches you that skill once and then wastes your evening repeating it.</p>
+<p>Now imagine a study partner who first sorts the bank by <em>what each question teaches you</em>, picks a few from every pile, and hands you a short set that still covers every skill. You finish in a third of the time and score about the same. That study partner is CluSTER. The "piles" are clusters of examples with similar effects on learning, the "short set" is a balanced sample across those clusters, and the "handing out" is distributing diverse batches evenly across GPUs so no chip wastes its time re-learning the same lesson.</p>
+<p>The key insight is embarrassingly simple once stated: fine-tuning time is mostly spent on redundant examples. If your dataset teaches the same skill fifty ways, forty-nine of those ways are nearly free to drop — provided you keep the one that teaches it best, and provided you don't accidentally drop an entire skill.</p>
+<p><img alt="CluSTER headline: same performance, about a third of the data, about a third of the time." src="assets/cluster_headline.png" /></p>
+<h2>How it works: influence, cluster, sample, allocate</h2>
+<p>CluSTER has four steps, and the order matters:</p>
+<ul>
+<li><strong>1. Score each example by its effect on learning.</strong> This is the step that separates CluSTER from ordinary data filtering. Instead of asking "what topic is this example about?" it asks "how does this example move the model?" Two examples can use different words, different domains, even different languages, and still push the model in the same direction. Those are duplicates in the sense that matters — learning effect — even though no deduplication tool based on text similarity would ever catch them.</li>
+<li><strong>2. Cluster examples with similar learning effects.</strong> Examples that teach the same thing land in the same cluster. A cluster is, in effect, one lesson the dataset is trying to teach, however many surface forms it comes in.</li>
+<li><strong>3. Sample balanced across clusters.</strong> Instead of taking the first 31% of the data (which would over-represent whatever skill dominates the dataset) or a random 31% (which can still miss rare skills), CluSTER picks representative examples from every cluster. The result keeps the full skill coverage of the dataset at a fraction of its size. In the reported medical question-answering experiment, that fraction was about 31%.</li>
+<li><strong>4. Allocate balanced across GPUs.</strong> Data-parallel training splits examples across GPUs, and random splitting can hand one GPU a batch of near-duplicates while another gets the variety. CluSTER distributes clusters evenly, so each GPU's batch is diverse. That matters because a GPU chewing through redundant examples is not just slow — it is computing gradients that mostly cancel or repeat, and the synchronization step at the end of each round waits for the slowest, most redundant worker.</li>
+</ul>
+<p><img alt="The CluSTER pipeline: score by learning effect, cluster, sample balanced, allocate balanced, then fine-tune." src="assets/cluster_pipeline.png" /></p>
+<h2>The state of the art: why this lands now</h2>
+<p>Data selection for fine-tuning is not new — practitioners have long filtered by quality, deduplicated near-identical text, and upsampled rare categories. CluSTER's contribution is putting the <em>learning effect</em> at the center and treating allocation as part of the method, not an afterthought.</p>
+<p>Three things make the timing right. First, fine-tuning is now the dominant way organizations adapt models: few teams train from scratch, but nearly everyone fine-tunes a base model on domain data — coding assistants, medical retrieval, internal support. A 69.6% cut in that recurring cost compounds across every adaptation run. Second, GPU time is the binding constraint for most of those teams, not data scarcity: they have more data than they can afford to train on, which is exactly the regime where dropping redundant examples pays. Third, the method improves existing infrastructure rather than demanding new hardware — the KAIST framing is that it makes the GPUs you already have more productive, which is a much easier sell than a new cluster.</p>
+<p>The numbers to carry: 69.6% is the <em>maximum</em> reported saving, not the average; 31% is the data fraction in the medical QA experiment, not a universal constant; the models were 7B and 13B, not frontier-scale; and the evaluation was eight benchmarks on coding and medical data. Treat 10 hours → 3 hours as the paper's illustration of the percentage (10 × 0.304 = 3.04), not a promise about your workload. The speedup implied by 69.6% is 3.29× — 1 / (1 − 0.696) — which is the right way to compare it against any other efficiency claim you see this week.</p>
+<p><img alt="Topic clustering groups by surface form; CluSTER groups by what an example teaches. The redundancy that matters is the second kind." src="assets/cluster_topic_vs_effect.png" /></p>
+<h2>The catch: selection is not free, and 31% is not a law</h2>
+<p>Four caveats, stated plainly:</p>
+<ol>
+<li><strong>Scoring every example costs compute.</strong> Computing a learning-effect score for each training example — typically via gradient or influence-style signals — is itself a pass over the data. The 69.6% saving is net of whatever the paper's pipeline cost on its workloads, but on your workload the arithmetic is: net saving = 6.96 hours − selection cost, on a 10-hour run. If selection is expensive and your run is short, the method can lose. Always measure end-to-end, including selection, before cutting data.</li>
+<li><strong>"Nearly the same performance" is benchmark-scoped.</strong> Eight benchmarks on coding and medical tasks do not cover everything a fine-tuned model will meet. Rare skills are precisely the ones a balanced sample is designed to protect — but a cluster the scorer misjudges is a skill silently dropped. For safety-critical domains, a benchmark pass is not a deployment clearance.</li>
+<li><strong>The fraction will vary.</strong> A dataset with little redundancy (carefully curated, diverse by construction) has less to gain; a bloated, web-scraped dataset has more. If your data is already deduplicated and balanced, expect a smaller win. The 31% figure is a result on KAIST's datasets, not a dial setting.</li>
+<li><strong>This is fine-tuning, not pretraining.</strong> CluSTER targets adapting an existing model to a domain. Whether influence-clustered sampling scales to pretraining — where the "skills" are far more numerous and the data far messier — is an open question the paper does not answer.</li>
+</ol>
+<p><img alt="Random sharding can starve some GPUs of variety; balanced sharding evens both count and mix (toy illustration)." src="assets/cluster_gpu_balance.png" /></p>
+<p>None of that diminishes the result. It reframes it: CluSTER is not "throw away 69% of your data." It is "measure what each example teaches, keep one good teacher per lesson, and stop paying GPUs to re-learn the same lesson." That is a discipline most fine-tuning pipelines currently lack — they treat data as fuel to burn, not as lessons to curate.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>CluSTER (KAIST, EMNLP 2026, arXiv 2609.12584) cuts fine-tuning time by up to 69.6% — 10 hours to about 3 — while keeping performance nearly unchanged, by training on about 31% of the data.</strong></li>
+<li><strong>The mechanism is four steps: score examples by learning effect, cluster by similar effect, sample balanced across clusters, allocate balanced across GPUs.</strong> The allocation step is part of the method, not plumbing.</li>
+<li><strong>Group by learning effect, not topic.</strong> Two examples with different words can teach the same skill; text-similarity deduplication misses that redundancy entirely.</li>
+<li><strong>69.6% is a maximum, 31% is one experiment's fraction, 7B/13B on coding and medical data is the tested regime.</strong> The implied speedup is 3.29×. Re-measure on your own workload, including the cost of scoring.</li>
+<li><strong>Selection cost is the break-even.</strong> Net saving = time saved − selection cost. Short runs and already-curated data gain less; bloated datasets gain more.</li>
+<li><strong>Check it yourself.</strong> The companion notebook recomputes the headline arithmetic (3.04 hours, 3.29× speedup), demos stratified sampling that keeps all five toy skills at 31%, and shows balanced GPU dealing — plus the break-even calculation.</li>
+</ul>
+<p>Sources: KAIST news release (Nov 2, 2026), Knowridge coverage (Nov 3, 2026), and the paper "Clustering-Based Balanced Sampling and Allocation with Data Parallelism for High-Performance Fine-Tuning" (EMNLP 2026 main.342, arXiv 2609.12584). All headline figures are the authors' reported results, not independently replicated; toy diagrams are labelled as illustrations.</p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/cluster_finetuning.ipynb">cluster_finetuning.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
