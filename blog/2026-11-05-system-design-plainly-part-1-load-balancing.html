@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design, Plainly — Part 1: Load Balancing | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>System Design, Plainly — Part 1: Load Balancing</h1>
+<div class="meta">2026-11-05 &middot; System design (load balancing) — Part 1</div>
+<article class="post">
+<p>One DNS name. Fifty-seven million requests a second. That is the average load Cloudflare's network absorbs — 77 million at peak, across 330+ cities, with 405 Tbps of capacity behind it. No single server on earth handles that. No single data center does either. What handles it is the most invisible piece of infrastructure in system design: the load balancer, a machine whose entire job is to decide, in microseconds, which of a thousand identical servers gets your request — and to keep deciding correctly when servers die, traffic spikes 10x in a minute, and one unlucky key gets hot.</p>
+<p>This is Part 1 of <strong>System Design, Plainly</strong>: one concept per post, evergreen, beginner-friendly, with the concrete numbers and the failure modes. Today: load balancing — what it is, the four algorithms that matter, why the naive version breaks, and why in 2026 the load balancer is suddenly part of the AI inference engine.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine a food court with 100 identical burger counters and one entrance. A host stands at the door. Every customer who walks in, the host points at a counter.</p>
+<p>The laziest host points at counters in order — 1, 2, 3, … 100, then back to 1. That is <strong>round robin</strong>, and it works fine until one customer orders a 40-burger catering tray and blocks counter 7 for twenty minutes while the other 99 counters stand idle. The host kept dealing fairly; the work was not fair.</p>
+<p>A smarter host glances at each counter's line and sends you to the shortest one. That is <strong>least connections</strong>, and it is nearly perfect — but now the host has to look at all 100 lines for every single customer, which is itself slow when 57 million customers show up per second.</p>
+<p>The clever host does something cheaper: pick two counters at random, glance at just those two lines, and send you to the shorter one. That is the <strong>power of two choices</strong>, and the math says it is almost as good as checking all 100. One extra random glance buys nearly everything perfect knowledge would.</p>
+<p>Load balancing is that host, automated, at a scale where "glance" means a hash-table lookup in under 100 nanoseconds — and where the counters are servers that crash, get deployed, and come back with different speeds.</p>
+<p><img alt="10,000 requests across 100 servers: random assignment leaves the busiest server at 122 requests; power of two choices leaves it at 102; perfect knowledge gets 100." src="assets/lb_ladder.png" /></p>
+<h2>How it works: layers, then algorithms</h2>
+<p>A request crosses up to three load-balancing layers before it reaches your code, and each layer only sees what it needs to route.</p>
+<p><strong>DNS + Anycast</strong> is the first, coarsest layer. One IP address is announced from hundreds of data centers at once (BGP Anycast); internet routers send you to the nearest one automatically. If a whole data center goes dark, BGP reroutes you to the next-nearest in seconds — no config change, no DNS TTL wait. This is also how a 71-million-requests-per-second DDoS attack gets absorbed: the attack is spread across the whole footprint instead of landing on one target.</p>
+<p><strong>Layer 4</strong> (transport layer) sees only IP addresses and ports. It never opens the packet's contents, never terminates TLS. It hashes the connection's 5-tuple (source IP, source port, destination IP, destination port, protocol) and looks up a table to pick a backend. Because it is so dumb, it is fast: AWS's Network Load Balancer handles millions of requests per second at sub-millisecond latency, and Google's Maglev — the software load balancer behind Google Cloud — processes roughly a gigabit per second per core with a precomputed lookup table of 65,537 entries.</p>
+<p><strong>Layer 7</strong> (application layer) terminates TLS, reads the HTTP request, and routes on the URL, headers, and cookies: <code>/api/*</code> to one fleet, <code>/images/*</code> to another, this user's session to the server that already holds it. It is smarter and slower — it has to do real work per request — so the typical production stack is L4 in front of L7 in front of backends, in two or more availability zones.</p>
+<p><img alt="The request's journey: DNS + Anycast picks the nearest point of presence, L4 picks a machine without reading the packet, L7 routes on the URL. Replies usually skip the balancer entirely (DSR)." src="assets/lb_layers.png" /></p>
+<h3>The algorithm ladder</h3>
+<p>Four algorithms cover nearly every real system, and they form a ladder: each one fixes the failure of the one below it.</p>
+<ol>
+<li><strong>Round robin</strong> — deal requests in order. Free, stateless, and blind. It breaks the moment requests cost different amounts: one slow request queues behind nothing while another server idles. Use it only when every request costs about the same.</li>
+<li><strong>Least connections</strong> — send to the server with the fewest in-flight requests. Near-perfect balance, but it costs a full scan of the fleet per request, and the "fewest" number is stale the instant you read it at high concurrency.</li>
+<li><strong>Power of two choices</strong> — pick two servers at random, send to the emptier one. The theorem (Mitzenmacher, 1996/2001) is the prettiest result in the field: with n balls into n bins, blind random assignment leaves the busiest bin at ~log n / log log n balls, while two choices leaves it at log log n + O(1). At a million bins that is ~5.3 versus ~2.6. Our simulation (companion notebook) makes it concrete: 1,000 balls into 1,000 bins, random leaves the busiest bin with 5, two choices leaves it with 3, perfect knowledge gets 1 — and at 10,000 requests over 100 servers, two choices lands at 102 versus random's 122 and perfect's 100. Two random peeks buy 90% of omniscience. This is why NGINX, HAProxy, and Envoy all ship it.</li>
+<li><strong>Consistent hashing</strong> — for stateful work. Sometimes the request has to land on the <em>same</em> server as last time: a cache key, a user session, a shard. Hashing the key modulo N is the obvious answer and the wrong one: add a 5th server and 80% of your keys move, because every key's <code>hash % 5</code> differs from its <code>hash % 4</code>. Consistent hashing (Karger et al., 1997; popularized by Amazon's Dynamo, 2007) puts servers and keys on the same ring; a key belongs to the next server clockwise. Add a server and only the keys in its arc move — about the new server's fair share, 20%. Our simulation: 200,000 keys, 4 → 5 servers, modulo moved 80.0%, the ring moved 20.2%.</li>
+</ol>
+<p><img alt="Adding a 5th server to 4: modulo placement moves 80% of keys; a consistent-hash ring moves ~20%. But one ring position per server is a lottery — 200 virtual nodes fix it." src="assets/lb_consistent_hash.png" /></p>
+<p>One catch with rings: a single position per server is a lottery. The largest arc on a 10-node ring runs about 2.9× the fair share in expectation, so one server can inherit nearly triple the keys. Our simulation measured the busiest node at 2.26× the mean with one token per node — and 0.06× for the quietest, which is nearly idle. The fix is <strong>virtual nodes</strong>: give each server 200 positions on the ring instead of one, and the spread collapses to 1.11× busiest, 0.83× quietest. Cassandra 4.0 defaults to 16 tokens per node plus deliberate placement; the principle is the same either way.</p>
+<h3>The two tricks that make it fast</h3>
+<p><strong>Direct Server Return (DSR).</strong> The load balancer only handles the <em>incoming</em> packet. The server replies directly to the client, skipping the balancer. That halves the balancer's work and removes it from the latency path of every response — it is why L4 balancers can run at line rate.</p>
+<p><strong>Health checks, at every layer.</strong> A balancer that routes to a dead server is worse than no balancer. Every layer probes its backends — a TCP connect, an HTTP 200 on <code>/healthz</code> — and a failed backend is dropped from the table in seconds. Maglev rebuilds its lookup table in milliseconds when a backend dies, so only the connections that belonged to the dead machine are re-hashed; the rest are untouched.</p>
+<h2>The state of the art: what changed in 2025–2026</h2>
+<p>Three shifts, in order of importance.</p>
+<p><strong>1. The cloud balancers keep getting smarter about the same old job.</strong> AWS's 2025–26 updates are all about control: NLB gained QUIC passthrough and weighted target groups in November 2025, ALB gained a Target Optimizer that caps concurrent requests per target to keep tail latency down. Pricing is still metered per capacity unit (about $0.0225/hour plus $0.008 per LCU-hour for ALB) — which is why the "just add more balancers" instinct has a bill attached.</p>
+<p><strong>2. The research frontier is still the ring.</strong> Consistent hashing is 29 years old and still getting papers. The August 2026 Local Rendezvous Hashing paper cuts the peak-to-average load ratio from 1.28 to 1.09 across 5,000 nodes and 50 million keys, with zero excess churn on failover — by running the election among a small window of ring-local neighbors instead of probing scattered memory. The lesson for interviews: consistent hashing is not a solved problem, it is a live tradeoff between balance, churn, and lookup cost.</p>
+<p><strong>3. The load balancer became part of the AI inference engine.</strong> This is the genuinely new part. An LLM request is stateful: the first turn of a chat builds a KV cache — thousands of tokens of prefill compute — and every follow-up turn reuses it <em>only if it lands on the same worker</em>. A round-robin balancer sends turn 6 to a random worker, the cache misses, and you pay the full prefill again. So the inference world built its own balancers: SGLang's cache-aware router scores each worker by prefix-match length and queue depth, claiming up to 3.8× the cache-hit rate of round-robin; the vLLM Router (Rust, December 2025) routes by session and understands prefill/decode disaggregation, reporting 25% higher throughput than llm-d and 2× over Kubernetes' native balancer in its own benchmark. Our toy simulation shows the same shape: 200 eight-turn sessions over 20 workers, round-robin hits the cache 5% of the time and burns 6.12M prefill tokens; session affinity hits 100% and burns 0.80M — 7.7× less recompute. And a June 2026 paper, RouteBalance, goes one step further and fuses <em>model selection</em> with <em>instance selection</em> in a single decision, Pareto-dominating 231 of 246 baseline configurations and cutting serving cost 26–37%. The load balancer is no longer just plumbing; for LLM serving it is a scheduling decision that costs real GPU money.</p>
+<p><img alt="Same 200 chat sessions: a state-blind round-robin router re-pays the prefill bill on nearly every turn; a cache-aware router pays it once. Toy simulation; vendor numbers in the caption." src="assets/lb_cache_aware.png" /></p>
+<h2>Why it breaks</h2>
+<p>Every load-balancing outage I have read about is one of these six:</p>
+<ul>
+<li><strong>The hot key.</strong> Consistent hashing is fair on average and useless against skew: if one celebrity's profile gets 40% of reads, one server gets 40% of reads. The fix is bounded loads (cap each node at (1+ε)× the average and spill the overflow clockwise) or splitting the hot key — never "add more servers," which does nothing for a single key.</li>
+<li><strong>Slow start.</strong> A fresh server joins the pool, the balancer floods it at full rate, and it melts before its caches warm. Good balancers ramp new backends up over tens of seconds. AWS's Target Optimizer exists partly for this.</li>
+<li><strong>Sticky sessions that stick too well.</strong> Session affinity is a cache optimization until a server dies and every one of its sessions re-homes at once — a thundering herd onto the survivors. Cap affinity lifetime; prefer consistent hashing over cookie pinning.</li>
+<li><strong>Health checks that lie.</strong> A backend that returns 200 on <code>/healthz</code> while its database connection pool is exhausted will receive traffic it cannot serve. Probe the thing that matters (a real query), and fail closed.</li>
+<li><strong>Retry storms.</strong> A client that retries a timed-out request 3× turns one outage into 4× load on the survivors — which then time out, which triggers more retries. This is the cascade that takes down whole fleets; the fixes are timeouts, backoff with jitter, and circuit breakers, all <em>above</em> the balancer.</li>
+<li><strong>Cross-zone traffic.</strong> Balancers that ignore zones will happily send a request across the continent to a slightly emptier server, paying latency and egress for a balance gain nobody measures. Keep traffic local unless a zone is actually failing.</li>
+</ul>
+<h2>The interview angle</h2>
+<p>"Design a load balancer" is a top-10 system-design question, and the expected answer is a tour of exactly this post: DNS/Anycast → L4 → L7, the algorithm ladder with the power-of-two-choices theorem, consistent hashing with virtual nodes for stateful routing, health checks, and DSR. The follow-ups that separate good answers from great ones: <em>how do you handle a hot key?</em> (bounded loads), <em>what happens when a backend dies mid-request?</em> (retry once, elsewhere, with an idempotency key), <em>how do you add capacity without moving 80% of the keys?</em> (the ring), and <em>what does your balancer do that a plain DNS round robin cannot?</em> (health checks and state).</p>
+<p>In the real world, the decision is usually not which algorithm to write — it is which layer to buy. One static IP per AZ and millions of requests per second is a Network Load Balancer; path-based routing and TLS termination is an Application Load Balancer or Envoy; global failover and DDoS absorption is Anycast at the edge. You write a custom balancer only when the routing decision needs application state — which, as the LLM world just discovered, is exactly when the interesting work starts.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Load balancing is three layers, not one: DNS/Anycast picks the region, L4 picks a machine without reading the packet, L7 routes on the URL. Each layer only sees what it needs.</strong></li>
+<li><strong>Power of two choices is the best deal in distributed systems: one extra random peek takes you from 122 to 102 requests on the busiest server (perfect: 100), and the theorem says the gap grows with scale.</strong></li>
+<li><strong>Consistent hashing exists because modulo is a trap: adding a 5th server moves 80% of keys under modulo, ~20% on a ring — and virtual nodes (200 per server) tame the ring's own imbalance from 2.26× to 1.11×.</strong></li>
+<li><strong>Direct Server Return and health checks are what make balancers fast and safe: the reply skips the balancer, and dead backends leave the table in seconds.</strong></li>
+<li><strong>The 2026 twist: for LLM serving, the load balancer is a cache decision. Round-robin re-pays the prefill bill (6.12M tokens in our toy); session affinity pays it once (0.80M). SGLang and vLLM now ship their own routers.</strong></li>
+<li><strong>It breaks on skew, not on averages: hot keys, slow starts, lying health checks, and retry storms — not raw throughput — are what take balancers down.</strong></li>
+<li><strong>Try it yourself.</strong> The companion notebook replays all four simulations: the ladder (random 5 vs P2C 3 vs perfect 1 at m = n = 1,000), the 80%-vs-20% scale-out, the vnode collapse, and the 7.7× prefill saving.</li>
+</ul>
+<p><em>This is Part 1 of System Design, Plainly. Part 2 — Caching — is next. Follow me on dev.to (<a href="https://dev.to/danielsamfdo">@danielsamfdo</a>) so you don't miss it.</em></p>
+<p>Sources: Karger et al., "Consistent Hashing and Random Trees" (1997); Amazon Dynamo (2007); Eisenbud et al., "Maglev: A Fast and Reliable Software Network Load Balancer" (NSDI 2016); Mitzenmacher, "The Power of Two Choices in Randomized Load Balancing" (2001); AWS Elastic Load Balancing docs (NLB: millions of requests/second; 2025–26 feature updates); Cloudflare security architecture (57M HTTP req/s average, 77M peak, June 2024 figures; 71M req/s DDoS attack mitigated); SGLang / vLLM Router blogs (cache-aware routing claims are the vendors' own benchmarks, not independently replicated); RouteBalance (arXiv 2606.17949, June 2026); Local Rendezvous Hashing (arXiv 2512.23434, August 2026). All simulation numbers are from the companion notebook and the diagrams in this post; toy diagrams are labelled illustrations. No content about excluded vendors appears in this post.</p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/load_balancing.ipynb">load_balancing.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
