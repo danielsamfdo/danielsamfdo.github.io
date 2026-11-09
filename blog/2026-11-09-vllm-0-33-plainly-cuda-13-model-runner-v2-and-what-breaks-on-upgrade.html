@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vLLM 0.33, Plainly: CUDA 13, Model Runner V2, and What Breaks on Upgrade | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>vLLM 0.33, Plainly: CUDA 13, Model Runner V2, and What Breaks on Upgrade</h1>
+<div class="meta">2026-11-09 &middot; GDE #1 / vLLM serving (vLLM 0.33.0 — CUDA 13, Model Runner V2, upgrade breakages)</div>
+<article class="post">
+<p>vLLM 0.33.0 shipped on November 2, 2026 — 927 commits from 389 contributors — and the headline is not a model. It is a platform break: the wheels and Docker images are CUDA 13.0 only, PyTorch moves to 2.14.0, and three things your deployment may depend on are deleted outright. Upgrade blind and your server does not start, your speculator config errors out, or your KV-transfer connector refuses to connect.</p>
+<p>And yet the biggest free speedup in the release changed no kernel at all. A scheduler accounting fix took one speculative-decoding setup from 1,373 to 3,390 output tokens per second — a 2.47x jump — because a handful of leftover tokens was keeping every decode step off the fast path. That is the story of this release in one number: 0.33 is less about new speed than about removing the things that were quietly capping the speed you already had.</p>
+<p>This is post #1 of a 25-post series on the Google AI stack — vLLM serving first, then JAX/Keras/Gemma, Google's Agent Development Kit, and Vertex AI — written for the Google Developer Expert AI track. One concept per post, concrete numbers, a runnable notebook. Today: what 0.33 actually changes, why Model Runner V2 is the engine underneath all of it, and the upgrade checklist that keeps your fleet serving.</p>
+<h2>The ELI5 version</h2>
+<p>vLLM is the kitchen that serves your language model to the world. Requests come in like orders, the GPU cooks tokens, and the engine's job is to keep the kitchen busy without letting any one order block the rest.</p>
+<p>Three upgrades to that kitchen land in 0.33:</p>
+<p><strong>The power supply changes (CUDA 13).</strong> The kitchen now runs on a new electrical standard. The old plugs — CUDA 12.9 wheels and images — are simply not manufactured anymore. If your machine's driver cannot speak CUDA 13, the new kitchen does not turn on. This is the one breaking change that hits literally every CUDA user.</p>
+<p><strong>The head chef's system becomes the only system (Model Runner V2).</strong> Model Runner V2 is the redesigned execution engine that has been rolling out since 0.29 — batch-sharded sampling, CUDA-graph memory profiling that sizes the KV cache automatically, and speculative decoding built into the runner instead of bolted on. In 0.32 it became the default on ROCm too, removing the last platform exceptions. In 0.33 there is no old engine left to fall back to: every new feature in this release — the scheduler fix, the lossy verifier, the draft-model changes — is a Model Runner V2 feature. If you are upgrading, you are running V2, full stop.</p>
+<p><strong>The menu loses three dishes (the removals).</strong> Medusa and the MLP speculator are deleted, the legacy Ray compiled-graph executor is deleted, and the NIXL connector now demands NIXL 1.5 or newer. None of these is a deprecation warning you can ignore for one more release — they are gone, and configs referencing them fail.</p>
+<h2>How it works: the four changes that matter</h2>
+<h3>1. The platform baseline: CUDA 13 only, PyTorch 2.14</h3>
+<p>The new baseline is PyTorch 2.14.0, torchvision 0.29.0, Triton 3.8.0, and CUDA 13.0 — for wheels, Docker images, and the default ROCm image moving to ROCm 10.0 (7.2 is still published under a <code>-rocm72</code> tag). The CUDA 12.9 artifacts are discontinued, not deprecated. Practically: update your NVIDIA driver to one that supports CUDA 13 before upgrading, and install vLLM in its own environment — a shared environment with PyTorch 2.15 installed will get downgraded by the <code>torch==2.14.0</code> pin, and that is a real way to break a second project while fixing the first.</p>
+<h3>2. The scheduler fix: 1,373 → 3,390 tokens a second, no kernel changed</h3>
+<p>This is the most instructive change in the release, and it is pure scheduling. In speculative decoding, a small draft model proposes tokens and the big model verifies them. On the main branch, 2 to 32 leftover draft tokens kept splitting each new prefill into small chunks, so most decode steps mixed prefill into the batch — and a mixed batch cannot take the full decode CUDA graph. The inter-token latency p50 sat at 169 ms.</p>
+<p>The 0.33 scheduler change stops drafters from reserving token-budget slots they do not use, so the leftover tokens stop fragmenting the batch. Same model, same hardware (DeepSeek-V4.1-Flash with the DSpark drafter on GB300), same kernels: 1,373 → 3,390 output tokens per second, a 2.47x gain, and ITL p50 falls from 169 ms to 30 ms — 5.6x. The lesson generalizes beyond vLLM: when a serving stack is slow, the bottleneck is often not the kernel but the schedule that decides which work shares a step. Check the batch composition before you blame the math.</p>
+<p>The same release also turns on lookahead block hashes for EAGLE and MTP prefix-cache hits by default, so a cached prefix keeps its last block, and adds an optional quantized draft <code>lm_head</code> that the PR reports as +18% decode throughput at concurrency 1.</p>
+<p><img alt="DeepSeek-V4.1-Flash with the DSpark drafter on GB300: decode throughput rises 1,373 → 3,390 tokens/s (2.47x) and inter-token latency p50 falls 169 → 30 ms (5.6x) from a scheduler fix alone — no kernel changed. Numbers from the cited PR, reported in the v0.33.0 release notes." src="assets/vllm033_dspark_fix.png" /></p>
+<h3>3. FLy: a lossy verifier you have to opt into</h3>
+<p>FLy is the release's most interesting — and most dangerous — new feature. Standard speculative decoding is exact: the verifier accepts a draft token only if the target model would have produced it, so the output distribution is preserved. FLy, from the paper "Training-Free Loosely Speculative Decoding" (arXiv 2511.22972), deliberately relaxes that: a rejected position is forgiven when the draft token is semantically close enough, which the PR states "does not preserve the target distribution and may reduce output quality."</p>
+<p>The payoff, across the PR's 48 model/platform/batch combinations (DeepSeek-V4-Flash with DSpark, Qwen3.8-27B with MTP, GLM-5.2-FP8 with MTP, Qwen3.5-122B-A10B-FP8 with MTP, on MI355X and B300, batch sizes 1–64): decode throughput 1.041x to 1.310x over standard speculative decoding, median 1.147x, with minimum accuracy retention of 96.3% against target-only decoding. The engine logs a one-time warning that the method is lossy, and standard verification stays the default.</p>
+<p>The rule that follows is simple. FLy is a throughput-for-accuracy trade, and the accuracy side is unbounded in the worst case — the PR's tables are single-run accuracy figures, which cannot certify safety for your workload. Leave standard verification on wherever outputs feed an unreviewed downstream decision — code that ships, data that trains the next model, anything a user acts on without a human in the loop. Turn FLy on where speed is the product and a slightly different token is harmless: brainstorming drafts, free-form chat, internal summarization with a human reader. And measure the accuracy on your own prompts before you trust the 96.3% floor — that number is the minimum across the PR's four models, not a guarantee for yours.</p>
+<p><img alt="FLy trades accuracy for speed: 1.041x–1.310x decode throughput over standard speculative decoding (median 1.147x across 48 PR benchmark points) against a minimum 96.3% accuracy retention. FLy is opt-in; standard verification stays the default." src="assets/vllm033_fly_tradeoff.png" /></p>
+<h3>4. The ABI-stable wheel: the end of the rebuild tax</h3>
+<p>The quietest big change is in the build. vLLM's C++ and CUDA code calls into LibTorch constantly, and before this work a change to LibTorch's binary interface could force a full vLLM rebuild even when the Python-visible API was identical. The 0.33 wheel is built against PyTorch's stable ABI — a stable C shim, C++ wrappers over it, and header-only utilities that never link <code>libtorch.so</code> — migrated across 175+ <code>.cpp</code>/<code>.cu</code> files, 120+ headers, and seven compiled dependencies (FlashMLA, DeepGEMM, FlashAttention-2/3, DeepSelect, FlashKDA, QuTLASS).</p>
+<p>An independent audit of the published 336 MB wheel reports <code>Torch ABI: STABLE</code>, minimum torch 2.13.0, 13 extensions, zero unstable symbols. Why that matters: across the last four torch releases, vLLM took 33, 34, 44, and 60 days to ship the first release pinning each one — and torch 2.12 was never pinned at all. The stable ABI is supposed to end that wait: swap in a newer compatible torch and the same wheel keeps working.</p>
+<p>One catch, and it is a good illustration of the difference between a binary and a package: the wheel can run on newer torch, but the PyPI metadata still declares <code>torch==2.14.0</code>, so pip will not install it that way yet. The capability is shipped; the packaging has not caught up. Expect that pin to loosen in a follow-up release — and do not hand-edit the metadata to force it in production.</p>
+<p><img alt="Across four PyTorch releases, vLLM took 33, 34, 44, and 60 days to ship a release pinning each one (torch 2.12 was never pinned). The 0.33 wheel is ABI-stable with a minimum torch of 2.13.0 — but PyPI metadata still pins torch==2.14.0." src="assets/vllm033_abi_wheel.png" /></p>
+<h2>The state of the art: what else shipped, and what it means</h2>
+<p><strong>Eleven new model architectures</strong>, led by Reflection Beam-1.0 — the 501B-parameter MoE with 23B active that this rail covered on October 6 — now serving with its DFlash2 drafter, plus Muse Spark Open, Recursive Flint (40B MoE, 2.5B active), Yandex AliceAI-Foundation-80B-A3B, Step-5 Preview, NVIDIA Alpamayo 2 Super, Nemotron-Labs Dory1.0-4B, Nemotron Parse 3.5, MiniCPM-OCR 1.0, Domyn Edge, and the ColUltraVBERT visual document retriever. A new XPress refiner targets block-diffusion drafters. And an OpenAI-compatible <code>/v1/decisions</code> endpoint is now on by default — decision models, the class of model that outputs a choice instead of text, can be served through the same API surface as chat.</p>
+<p><strong>The vendor-reported performance numbers, with the caveat attached:</strong> opt-in latency-specialized decode for Kimi-K3 on GB300 at 1.5–2x (TP8/TP16), FlashInfer disaggregated-prefill cutting mean time-to-first-token 39–48% at 100K input on 8xB200, and MonoKernel decode at 2.32x P50 interactivity at concurrency 1 on MI300X/MI325X. These are the project's PR benchmarks on the project's hardware, not independent measurements — treat them as "worth testing on your fleet," not as a promise.</p>
+<p><strong>Serving operations get two small, genuinely useful changes:</strong> concurrent worker startup for tensor-parallel sizes above 1, so a TP8 server stops starting its workers one at a time, and a watchdog that dumps stack traces from stuck processes instead of leaving you to guess which worker hung.</p>
+<h2>Why it breaks: the upgrade checklist</h2>
+<p>This release breaks things in the specific, boring ways that take a fleet down at 2 a.m. Run this checklist in order:</p>
+<ol>
+<li><strong>Driver first.</strong> Update the NVIDIA driver to one that supports CUDA 13 before touching vLLM. The 0.33 artifacts will not install or run on a CUDA 12.9-era driver.</li>
+<li><strong>Fresh environment.</strong> Install 0.33 in its own venv or container. The <code>torch==2.14.0</code> pin will downgrade a PyTorch 2.15 setup in a shared environment.</li>
+<li><strong>Grep for the removals.</strong> Search your configs and launch scripts for Medusa, the MLP speculator, and the legacy Ray compiled-graph executor. All three are deleted — replace Medusa/MLP drafters with EAGLE, MTP, or DSpark, and move Ray usage to the current executor.</li>
+<li><strong>NIXL ≥ 1.5.</strong> If you use the NIXL connector for KV transfer, upgrade NIXL first; the old connector version will not connect.</li>
+<li><strong>Handle the new 503.</strong> Requests arriving while generation is paused now receive HTTP 503 instead of queueing. If your clients retry on 503, fine; if they treat it as a hard failure, update the retry policy before you upgrade.</li>
+<li><strong>Smoke-test before you roll.</strong> Start the server on one node and hit it with the notebook's smoke test — a small model, a short generation, and the <code>/v1/models</code> and <code>/v1/completions</code> endpoints — before the fleet follows. The notebook in this post generates those exact commands, pinned to 0.33.0.</li>
+</ol>
+<p><img alt="The five things that break on upgrade — CUDA 12.9 artifacts, Medusa/MLP speculators, the legacy Ray executor, NIXL &lt; 1.5, and paused-generation queueing — against the five reasons the upgrade is worth doing." src="assets/vllm033_what_breaks.png" /></p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>vLLM 0.33.0 is a platform release, not a model release.</strong> CUDA 13 only, PyTorch 2.14, and three deletions. The upgrade is a migration, not a version bump — budget an afternoon, not ten minutes.</li>
+<li><strong>The biggest speedup changed no kernel.</strong> The DSpark scheduler fix (1,373 → 3,390 tok/s, 2.47x) is a reminder to check batch composition before blaming the math.</li>
+<li><strong>FLy is a real trade, not a free lunch.</strong> Median 1.147x decode throughput for up to 3.7 points of accuracy, with no distribution guarantee. Opt in only where a different token is harmless, and measure on your own prompts.</li>
+<li><strong>The ABI-stable wheel ends the rebuild tax in principle.</strong> Minimum torch 2.13.0, zero unstable symbols — but PyPI still pins 2.14.0, so the packaging lags the binary by one release.</li>
+<li><strong>Model Runner V2 is now the only engine.</strong> Every 0.33 feature is a V2 feature. If you have been deferring the V2 migration, 0.33 defers it for you — by removing the alternative.</li>
+</ul>
+<p>Next in this series, Tuesday Nov 10: <strong>PagedAttention and the KV cache, plainly</strong> — why KV memory, not FLOPs, caps your concurrency, with the memory arithmetic for three model sizes. Follow the dev.to profile to get it — and the other 23 posts in this Google AI series — as they land.</p>
+<p><em>Honesty note: all performance figures in this post are the vLLM project's own PR benchmarks or release-notes claims on the project's hardware, not independently tested — including the 2.47x DSpark gain, the FLy 1.041–1.310x range, and the Kimi-K3 / FlashInfer / MonoKernel numbers. The 0.33.0 release is published under the tag <code>v0.33.0rc3</code> with the prerelease flag off. No Meta content, per standing policy.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/vllm_033_upgrade.ipynb">vllm_033_upgrade.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
