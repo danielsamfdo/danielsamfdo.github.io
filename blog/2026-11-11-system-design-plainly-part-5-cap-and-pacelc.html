@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design, Plainly — Part 5: CAP and PACELC | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>System Design, Plainly — Part 5: CAP and PACELC</h1>
+<div class="meta">2026-11-11 &middot; System design (CAP/PACELC) — Part 5</div>
+<article class="post">
+<p>Every system-design interview asks about CAP, and almost every answer is wrong. The candidate draws the triangle — Consistency, Availability, Partition Tolerance, pick two — and the interviewer nods, and both of them walk away having agreed on a statement that is, at best, a third of the truth. The triangle is not wrong the way a wrong number is wrong. It is wrong the way a map of a city with only the highways is wrong: it shows the rare disaster and hides the road you drive every day.</p>
+<p>Here is the correction in one sentence: <strong>CAP only describes what your system does when the network is broken. PACELC describes what it does the other 99.9% of the time — and that is the tradeoff you actually live with.</strong> A partition is the crisis. Latency versus consistency is the rent. This post is about both, with the numbers: quorum math that makes stale reads exactly zero, a partition simulation that shows what availability really costs, and the latency ladder that prices every consistency level you could buy.</p>
+<p>This is Part 5 of <strong>System Design, Plainly</strong>: one concept per post, evergreen, beginner-friendly, with the concrete numbers and the failure modes. Today: CAP and PACELC — what the theorem actually says, why "pick two of three" misleads you, and how to choose per operation instead of per system.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine a bank with two branches and one account. You deposit $100 at branch A. Your friend walks into branch B five minutes later and asks for the balance. What should branch B say?</p>
+<p>If the phone line between the branches is working, branch B calls branch A, confirms the $100, and answers correctly. That call costs time — the friend waits. If the phone line is <strong>cut</strong> — that is a network partition — branch B has two options, and there is no third one. It can <strong>refuse to answer</strong> ("I can't verify your balance right now, come back later") — that is choosing consistency over availability. Or it can <strong>answer from its own books</strong> ("your balance is $0, as far as I know") — that is choosing availability over consistency. It cannot do both, because the information it needs is on the other side of a cut wire.</p>
+<p>Now the part the triangle hides: even when the phone line works fine, branch B still has a choice. It can call branch A on <em>every</em> balance question — always correct, always slow — or it can answer from its own books immediately and sync up with branch A later — always fast, sometimes stale. That everyday choice, made on a healthy network, is what PACELC adds. CAP is the crisis decision. PACELC is the daily one. And the daily one is the one your users feel on every single request.</p>
+<h2>How it works: CAP, precisely</h2>
+<p>The CAP theorem was Eric Brewer's conjecture in a 2000 keynote, proved by Seth Gilbert and Nancy Lynch in 2002. It says a distributed data store cannot guarantee all three of these at once <strong>during a network partition</strong>:</p>
+<ul>
+<li><strong>Consistency (C)</strong> — every read receives the most recent write, or an error. In CAP's sense this means <em>linearizability</em>: all nodes agree on one version of the truth, as if there were a single copy. This is not the "C" in ACID, which is about invariants inside one transaction.</li>
+<li><strong>Availability (A)</strong> — every request to a non-failing node gets a non-error response. Note what it does <em>not</em> promise: the response may be stale. Availability is about answering, not about being right.</li>
+<li><strong>Partition tolerance (P)</strong> — the system keeps operating when messages between nodes are dropped or delayed. A partition is not only a severed cable: a switch failure, a misconfigured firewall, a garbage-collection pause long enough to look like a dead node — all of these are partitions from the system's point of view.</li>
+</ul>
+<p>The first correction: <strong>P is not a choice.</strong> Networks partition. Fiber gets cut, routers reboot, availability zones lose connectivity. Any system that runs on more than one machine must tolerate partitions, so the real CAP decision is always CP versus AP — what do you do <em>while</em> the partition lasts?</p>
+<ul>
+<li><strong>CP</strong> — refuse requests on the minority side rather than risk a wrong answer. A payment ledger, a seat reservation, a distributed lock: the system would rather say "no" than say something false. Our simulation: during a 60-second partition, the minority side rejects 55% of writes — every write that happened to land on the wrong side of the cut. Zero divergence, zero conflicts, but more than half the writes fail in front of the user.</li>
+<li><strong>AP</strong> — keep accepting writes on both sides and reconcile when the partition heals. A shopping cart, a like counter, a social feed: the system would rather take the write than lose it. Our simulation on the same 100 writes: both sides accept everything, but 13 of the 20 hot keys were written on <em>both</em> sides — 65% of keys now have two conflicting versions, and something has to decide which one wins.</li>
+</ul>
+<p><img alt="Same 100 writes during a 60-second partition, two choices: AP accepts all 100 and leaves 13 of 20 hot keys with conflicting versions to reconcile; CP rejects 55% of writes and keeps a single truth. Simulation in the companion notebook." src="assets/cap_partition.png" /></p>
+<p>Notice what decides the cost: not the number of writes, but the number of <em>keys</em>. The same 100 writes spread across 1,000 keys produce exactly 1 conflict (0.1%). The AP tax is a hot-key tax. A cart service with millions of distinct carts pays almost nothing for availability; a seat map with 20 contested seats pays for it on nearly every write. That is the first hint that the right answer is per operation, not per system — and it is the thread the rest of this post pulls.</p>
+<h2>Quorum math: the dial between stale and slow</h2>
+<p>Replication gives you a dial, and the dial is arithmetic. With N replicas, a write waits for W acknowledgements and a read waits for R responses. If W + R &gt; N, the read set and the write set must overlap on at least one replica that has the latest write — so a read can never miss it. If W + R ≤ N, the sets can miss each other entirely, and the read can be stale.</p>
+<p>Our Monte Carlo simulation (N = 3, random read/write sets, 20,000 trials per level) makes the cliff exact:</p>
+<ul>
+<li><strong>W=1, R=1</strong> (write to one replica, read from one): <strong>66.4% of reads are stale.</strong> This is the default for a system that acks locally and reads locally — fast, and wrong two times out of three.</li>
+<li><strong>W=1, R=2</strong> or <strong>W=2, R=1</strong>: <strong>33% stale.</strong> Reading from two replicas halves the miss rate, but a third of reads still see the old value.</li>
+<li><strong>W=2, R=2</strong>, <strong>W=3, R=1</strong>, <strong>W=1, R=3</strong>: <strong>0.0% stale in all 20,000 trials.</strong> The moment W + R exceeds N, staleness drops off a cliff to exactly zero — not "rare", zero, because overlap is a mathematical guarantee, not a probability.</li>
+</ul>
+<p><img alt="N = 3 replicas, 20,000 trials per level: W=1/R=1 leaves 66.4% of reads stale, W=1/R=2 leaves 33.4%, and every level with W + R &gt; N reads zero stale — overlap is a guarantee, not a probability. Simulation in the companion notebook." src="assets/cap_quorum.png" /></p>
+<p>This is why Cassandra lets you set the consistency level <em>per query</em>: <code>ONE</code> for the like counter, <code>QUORUM</code> for the balance, <code>ALL</code> for the once-a-year reconciliation job. DynamoDB does the same with its strongly-consistent-read flag — eventual by default, strong when you ask and pay for it. Our simulation of that toggle: against a replica lagging on 5% of reads, eventual reads come back stale 5.0% of the time; strong reads, 0.0%. The price of strong is one quorum round trip per read. Which brings us to the bill.</p>
+<h2>PACELC: the tradeoff you pay every day</h2>
+<p>Daniel Abadi proposed PACELC in a 2010 blog post and formalized it in a 2012 paper, and its whole point is that CAP stops talking exactly where your system spends its life. The statement, in full:</p>
+<blockquote>
+<p><strong>If there is a Partition, choose Availability or Consistency. Else — normal operation, no partition — choose Latency or Consistency.</strong></p>
+</blockquote>
+<p>Read it as two decisions instead of one. The first half is CAP. The second half is new, and it is the one that shows up in your latency dashboard: to guarantee consistency even on a healthy network, replicas must coordinate before answering, and coordination is round trips. A write that acks locally costs about 1 ms. A write that waits for a same-AZ quorum costs about 2.5 ms. Cross-AZ, about 5 ms. A write that waits for a quorum across the continental US costs about 70 ms — <strong>14× the same-AZ quorum</strong> — and a globally synchronous commit across three regions costs about 105 ms, <strong>105× a local ack</strong>. Every consistency level you buy is a round trip you pay on every single write, healthy network or not.</p>
+<p><img alt="The E in PACELC, priced — model: one RTT to the quorum plus 0.5 ms to apply. A cross-region quorum costs 14× a same-AZ quorum; a global synchronous commit costs 105× a local ack. Model and numbers in the companion notebook." src="assets/pacelc_latency.png" /></p>
+<p>That ladder is why the PA/EL systems and the PC/EC systems look so different in production, and why the classification below is more useful than any CAP label. A system's PACELC code is two letters for the partition branch and two for the normal branch:</p>
+<ul>
+<li><strong>PA/EL — DynamoDB (eventual mode), Cassandra (default), Riak.</strong> Available during a partition, fast normally. The cost is eventual consistency: reads can lag, and conflicts get resolved after the fact.</li>
+<li><strong>PC/EC — Spanner, CockroachDB, etcd, ZooKeeper, MongoDB (majority writes).</strong> Consistent during a partition, consistent normally — and slow in both branches, because every write waits for a quorum or a global commit. Spanner buys its global consistency with TrueTime, synchronized atomic clocks and GPS receivers, and still pays a commit wait measured in single-digit milliseconds per write (Google-reported); that is the tax for a ledger that is correct on every continent at once.</li>
+<li><strong>PC/EL — MongoDB (default reads from primary), Yahoo's PNUTS.</strong> Consistent when partitioned, but reads normally go to the local primary without waiting — the odd quadrant, and the proof that the two branches really are independent decisions.</li>
+</ul>
+<p><img alt="One code per system, two decisions: PA/EL systems stay available and fast and pay in staleness; PC/EC systems stay consistent and pay in latency twice — during partitions and every normal write. PC/EL is the odd quadrant that proves the branches are independent." src="assets/pacelc_map.png" /></p>
+<h2>The state of the art: tunable, per operation, and cheaper than it used to be</h2>
+<p>The 2026 picture is not "pick a quadrant and live in it." It is tunable consistency, set per operation, on systems that keep shrinking the latency tax:</p>
+<p><strong>1. Tunable reads and writes are the default now.</strong> DynamoDB offers strongly consistent reads as a per-request flag and replicates global tables typically in under a second (AWS-reported). Cassandra's per-query consistency levels — <code>ONE</code>, <code>QUORUM</code>, <code>ALL</code>, <code>LOCAL_QUORUM</code> — are the textbook example. The decision moved from the architecture document into the query: the same cluster serves the like counter at <code>ONE</code> and the balance at <code>QUORUM</code>, and the latency budget follows the operation, not the system.</p>
+<p><strong>2. PC/EC got cheaper.</strong> The old story was that global strong consistency costs a cross-region round trip on every write, full stop. Aurora DSQL (generally available December 2024) attacks exactly that: a disaggregated, multi-region PostgreSQL-compatible database that promises strong consistency with single-digit-millisecond reads, by separating the log from the compute and committing through a distributed transaction log instead of two-phase commit across regions (AWS-reported — independent benchmarks are still thin, treat the headline as a vendor claim). CockroachDB's 25.x releases keep pushing the same direction with follower reads: reads from the nearest replica for stale-tolerant queries, quorum reads only where freshness matters. The PC/EC quadrant is no longer a 100-ms sentence.</p>
+<p><strong>3. The consistency models got names, and the names matter.</strong> Linearizability (CAP's C) is the strongest: every operation looks instantaneous. Below it sit sequential consistency, causal consistency (your reply is never visible before the message it replies to), read-your-writes, monotonic reads, and eventual consistency. Most real systems sell you one of the middle rungs per operation: DynamoDB's read-your-writes on the same session, Spanner's external consistency, CockroachDB's serializable by default with follower reads as the escape hatch. In an interview, naming the rung you need — not just "strong" or "eventual" — is what separates a good answer from a recited one.</p>
+<p><strong>4. The edge cases moved to the center.</strong> The systems that win in 2026 are the ones that handle the cases CAP pretends do not exist: partial partitions (one node slow, not dead — a GC pause looks exactly like a partition to a timeout), clock skew (Spanner's TrueTime exists because wall clocks lie by milliseconds, and a commit that trusts a lying clock can order two writes backwards), and the read path (most systems are write-consistent and read-eventual by default, and the stale read is the bug users actually report).</p>
+<h2>Why it breaks</h2>
+<p>Every CAP/PACELC failure is one of these six:</p>
+<ul>
+<li><strong>The "CA system" that is really one node.</strong> A single-node database is consistent and available — and has no partition to tolerate, because there is nothing to partition. The moment you add a second node for failover, the triangle applies, and the marketing label does not survive the first network blip. Martin Kleppmann's 2015 critique, "Please stop calling databases CP or AP", is still the sharpest version of this: the labels describe one behavior under one failure, not the system.</li>
+<li><strong>Availability is not binary.</strong> CAP's A means "every non-failing node answers every request." Real systems degrade: a CP system that refuses writes on the minority side is still serving reads; an AP system that accepts writes is still dropping the ones that conflict. The useful question is never "is it available" but "what fraction of which operations still succeed, and what do the failures look like to the user?"</li>
+<li><strong>The stale read nobody tested.</strong> The write path is quorum-consistent, the read path is eventual by default, and the first user to refresh after an update sees the old value. This is the most common consistency bug in production, and it is a configuration bug, not a theorem: the read consistency level was never set, because nobody owned the read path.</li>
+<li><strong>The slow node that looks dead.</strong> A 30-second GC pause is indistinguishable from a partition to a 5-second timeout. The system declares the node dead, re-elects a leader, and the "dead" node comes back and tries to lead again — a flapping partition that no theorem covers, because CAP assumes partitions are clean cuts. Fix: failure detectors with suspicion levels, not binary timeouts, and fencing tokens so a resurrected leader cannot write.</li>
+<li><strong>The clock that lies.</strong> Two writes ordered by wall-clock time on two machines whose clocks differ by 40 ms can be applied in the wrong order — and no quorum fixes it, because both writes reached a quorum. Spanner pays for atomic clocks for exactly this reason; everyone else pays with logical clocks (Lamport timestamps, hybrid logical clocks) or accepts the risk. If your ordering depends on <code>time.now()</code>, you have a consistency bug with a timer on it.</li>
+<li><strong>The conflict resolution nobody designed.</strong> The AP system accepts writes on both sides of a partition, the partition heals, and 65% of the hot keys have two versions — and the resolution rule is "last write wins by timestamp", which silently discards one side's writes. Last-write-wins is a conflict <em>deletion</em> policy, not a resolution policy. CRDTs (for counters, sets, registers that merge by construction) or application-level merges (the shopping cart union both sides) are the honest answers; "last write wins" is the one you reach for when nobody thought about it.</li>
+</ul>
+<h2>The interview angle</h2>
+<p>"Design a payment system" and "design a like counter" are the same question with opposite answers, and the interviewer is checking whether you notice. The expected tour: define the operation's cost of a wrong answer first (a double charge is a lawsuit; a stale like count is invisible), then choose per operation — CP/EC for the charge and the seat reservation, AP/EL for the cart, the feed, and the counter — then name the mechanism (quorum levels, W + R &gt; N, TrueTime or Raft for the consistent side, CRDTs or last-write-wins with eyes open for the available side).</p>
+<p>The follow-ups that separate good answers from great ones: <em>what consistency does a read need?</em> (read-your-writes for the user who just posted, eventual for everyone else); <em>how do you make a stale read impossible without paying the quorum on every read?</em> (session stickiness plus read-your-writes, or a version token the client carries); <em>what happens when a node is slow, not dead?</em> (suspicion-based failure detection, fencing); <em>when is strong consistency free?</em> (single-region, same-AZ quorum — 2.5 ms — is the cheapest consistency you will ever buy, and the reason most systems are strongly consistent inside one region and eventual across regions); and <em>what does your system do when the partition heals?</em> (the merge policy is the design; the partition is just the trigger).</p>
+<p>In the real world, the decision is usually not which database to buy — it is which consistency level each operation gets. The same cluster serves both answers. The theorem tells you the tradeoff exists; the per-operation choice is the engineering.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>CAP only covers the crisis: during a partition you choose consistency or availability, and P is not optional — the real choice is always CP vs AP.</strong></li>
+<li><strong>PACELC covers the other 99.9%: even on a healthy network, replication forces latency versus consistency — a global synchronous commit costs 105× a local ack, and you pay it on every write.</strong></li>
+<li><strong>Quorum math is a cliff, not a slope: with N = 3, W=1/R=1 leaves 66.4% of reads stale and W=1/R=2 leaves 33.4%, but every level with W + R &gt; N reads exactly 0% stale in 20,000 trials.</strong></li>
+<li><strong>The AP tax is a hot-key tax: 100 writes during a partition conflict on 65% of 20 hot keys but only 0.1% of 1,000 keys — while CP rejects 55% of writes and keeps a single truth.</strong></li>
+<li><strong>Classify by PACELC, not CAP: DynamoDB and Cassandra are PA/EL, Spanner and CockroachDB are PC/EC, MongoDB's majority writes are PC/EC — and the code is set per operation, not per system.</strong></li>
+<li><strong>The most common consistency bug is the read path: a quorum-consistent write path with an eventual read path shows users the old value, because nobody set the read consistency level.</strong></li>
+<li><strong>Try it yourself.</strong> The companion notebook replays all four simulations: the quorum cliff (66.4% → 0.0% stale), the partition divergence (65% → 0.1% conflicts as the keyspace widens), the latency ladder (1 ms → 105 ms), and the tunable-consistency toggle (5.0% stale eventual vs 0.0% strong).</li>
+</ul>
+<p><em>This is Part 5 of System Design, Plainly. Part 6 — Rate Limiting — is next. Follow me on dev.to (<a href="https://dev.to/danielsamfdo">@danielsamfdo</a>) so you don't miss it.</em></p>
+<p>Sources: Eric Brewer, "Towards Robust Distributed Systems" (PODC 2000 keynote); Seth Gilbert and Nancy Lynch, "Brewer's Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services" (ACM SIGACT News, 2002); Daniel Abadi, "Consistency Tradeoffs in Modern Distributed Database System Design" (IEEE Computer, 2012) and the 2010 blog post that introduced PACELC; Martin Kleppmann, "Please stop calling databases CP or AP" (2015); Google, "Spanner: Google's Globally-Distributed Database" (OSDI 2012 — TrueTime commit wait, single-digit milliseconds, Google-reported); Amazon DynamoDB docs (strongly consistent reads per request; global-table replication typically under a second — AWS-reported); Amazon Aurora DSQL (GA December 2024, multi-region strong consistency, single-digit-millisecond reads — AWS-reported, independent benchmarks thin); CockroachDB docs (Raft quorum, follower reads); Cassandra docs (per-query consistency levels ONE/QUORUM/ALL). All simulation numbers are from the companion notebook and the diagrams in this post; latency-ladder figures are a stated model (1 RTT to quorum + 0.5 ms apply), not measurements. No content about excluded vendors appears in this post.</p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/cap_pacelc.ipynb">cap_pacelc.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
