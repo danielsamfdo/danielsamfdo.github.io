@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prefill vs Decode: Why Splitting Them Wins | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Prefill vs Decode: Why Splitting Them Wins</h1>
+<div class="meta">2026-11-13 &middot; GDE #3 / vLLM serving (prefill/decode disaggregation — TTFT vs TPOT, NIXL, Mooncake, EPD)</div>
+<article class="post">
+<p>A user pastes an 8,000-token document into a chat box and hits send. On the server, that prompt takes about 320 milliseconds of pure GPU math to process. For those 320 milliseconds, every other user already chatting on that same GPU gets nothing — their text freezes mid-sentence. One new request, thirty-two frozen streams. The average latency barely moves. The tail latency explodes.</p>
+<p>That freeze is the whole reason LLM serving split in two. Your request is not one job. It is two jobs with opposite appetites, sharing one GPU, and the fix — running them on separate pools of GPUs and shipping the KV cache between them — is now a first-class feature of vLLM 0.33. This is GDE post #3 in the vLLM serving series: what prefill and decode actually cost, why they fight, and when splitting them pays — with the numbers, the launch commands, and the ways it breaks.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine a restaurant kitchen with one stove and two chefs who need it for completely different things.</p>
+<p><strong>The prep chef</strong> gets a huge order all at once — chop 2,000 carrots. It is one big, parallelizable burst of work: the more burners she can use at once, the faster it goes. She is done in minutes, and then she has nothing to do until the next order arrives. That is <strong>prefill</strong>: the model reads your entire prompt in one compute-bound pass and builds the KV cache — the running memory of everything it has read.</p>
+<p><strong>The line chef</strong> plates one dish at a time, all evening. Each plate takes seconds, and most of the time is spent walking to the pantry and back — fetching ingredients — not cooking. He is busy for hours, but each individual step is small. That is <strong>decode</strong>: the model generates one token per step, and each step is dominated by reading the model's 16 GB of weights (plus every live user's KV cache) off memory. It is memory-bandwidth-bound, not compute-bound.</p>
+<p>One stove, two chefs, opposite rhythms. The prep chef's big burst blocks the line chef's steady flow — that is the 320 ms freeze. The restaurant's answer is obvious: give them separate stoves. Prefill gets its own GPUs, decode gets its own GPUs, and the only thing that crosses between them is the prepped ingredients — the KV cache. That is <strong>prefill/decode disaggregation</strong>.</p>
+<p>Two numbers track the two chefs. <strong>TTFT (time to first token)</strong> is dominated by prefill: how long until the user sees anything. <strong>TPOT (time per output token)</strong>, and its per-gap cousin <strong>ITL (inter-token latency)</strong>, are set by decode: how fluid the stream feels once it starts. A serving system is judged on both, at high percentiles — and on <strong>goodput</strong>, the request rate it sustains while 90% of requests still meet both SLOs.</p>
+<h2>How it works: two phases, one transfer</h2>
+<p>The arithmetic, for an 8B-class model on one H100. Prefill costs 2 × parameters FLOPs per token — about 16 microseconds per token at peak, ~40 µs at a realistic 40% MFU. A 2,000-token prompt costs ~81 ms; an 8,000-token prompt costs ~323 ms. Decode costs one full read of the weights per step: 16 GB at 3.35 TB/s is ~4.9 ms before any KV cache is read, ~7.3 ms with 32 users at 2,000 tokens of context each. Prefill time grows with <strong>prompt length</strong>; decode-step time grows with <strong>batch × context</strong>. Different knobs, different scaling — one schedule cannot serve both.</p>
+<p><img alt="Prefill is compute-bound, decode is memory-bandwidth-bound: a 2,000-token prefill costs ~81 ms of compute while a decode step costs ~7 ms of mostly memory reads. Simulation in the companion notebook." src="assets/pd_two_phases.png" /></p>
+<p><strong>The interference, measured.</strong> Our simulation runs 400 decode steps with an 8,000-token prompt arriving at step 120. Colocated, whole-prompt prefill: the worst gap hits <strong>330 ms</strong> — a visible freeze — while the average gap stays 7.3 ms. That is the trap: averages hide it, users feel it. <strong>Chunked prefill</strong> (Sarathi-Serve's fix: slice the prompt into 128-token chunks and interleave them with decode steps) caps the worst gap at <strong>12.5 ms</strong>. Disaggregation removes it entirely: the decode GPU never prefills, so the worst gap is the baseline 7.3 ms. Chunked prefill is the cheap fix and the right default at small scale; disaggregation is the fix when you need the two phases tuned and scaled independently.</p>
+<p><img alt="One 8,000-token prompt arrives at step 120: colocated serving freezes decoding users for 330 ms; 128-token chunks cap the freeze at 12.5 ms; disaggregation removes it. Simulation in the companion notebook." src="assets/pd_interference.png" /></p>
+<p><strong>What crosses the wire.</strong> The KV cache for an 8B model is 128 KB per token (32 layers × K and V × 8 KV heads × 128 dimensions × 2 bytes). A 2,000-token prompt produces 256 MB of KV cache that must move from the prefill GPU to the decode GPU. The cost depends entirely on the link: <strong>0.29 µs per token on NVLink</strong> (0.6 ms for the whole prompt), <strong>5.2 µs on InfiniBand 200 Gb/s</strong>, <strong>10.5 µs on 100 GbE</strong> (21 ms for 2,000 tokens), <strong>41.9 µs on 25 GbE</strong> (84 ms). Against ~16 µs of prefill math per token, NVLink's transfer is 2% overhead and 25 GbE's is 260% — the transfer costs <em>more</em> than the compute it replaces. The interconnect is the decision, not the idea.</p>
+<p><img alt="Moving one token's KV cache (128 KB for an 8B model): 0.29 µs on NVLink, 10.5 µs on 100 GbE, 41.9 µs on 25 GbE — against ~16 µs of prefill math per token. Simulation in the companion notebook." src="assets/pd_transfer_cost.png" /></p>
+<p><strong>Running it in vLLM 0.33.</strong> Disaggregated prefill is experimental in 0.33 (docs at v0.33.0rc3) and the shape is simple: a prefill pool, a decode pool, and a proxy that choreographs them. Launch a producer and a consumer with the NIXL connector:</p>
+<pre><code class="language-bash"># Prefill pool (GPU 0, port 8100)
+CUDA_VISIBLE_DEVICES=0 UCX_NET_DEVICES=all VLLM_NIXL_SIDE_CHANNEL_PORT=5600 \
+  vllm serve Qwen/Qwen3-0.6B --port 8100 --enforce-eager \
+  --kv-transfer-config '{&quot;kv_connector&quot;:&quot;NixlConnector&quot;,&quot;kv_role&quot;:&quot;kv_producer&quot;,&quot;kv_load_failure_policy&quot;:&quot;fail&quot;}'
+
+# Decode pool (GPU 1, port 8200)
+CUDA_VISIBLE_DEVICES=1 UCX_NET_DEVICES=all VLLM_NIXL_SIDE_CHANNEL_PORT=5601 \
+  vllm serve Qwen/Qwen3-0.6B --port 8200 --enforce-eager \
+  --kv-transfer-config '{&quot;kv_connector&quot;:&quot;NixlConnector&quot;,&quot;kv_role&quot;:&quot;kv_consumer&quot;,&quot;kv_load_failure_policy&quot;:&quot;fail&quot;}'
+</code></pre>
+<p>The proxy — vLLM ships a toy one for reference — sends each request to a prefill instance with <code>max_tokens=1</code>, <code>stream=False</code>, and <code>kv_transfer_params={"do_remote_decode": True, ...}</code>, reads the transfer parameters back from the prefill response, attaches them to the decode request, and streams the decoder's output to the client. The client sees one ordinary streamed response. NIXL (NVIDIA Inference Transfer Library, open-sourced March 2026) is the default transfer path; Mooncake and LMCache connectors plug into the same <code>--kv-transfer-config</code> slot — <code>MooncakeConnector</code> for point-to-point handoff, <code>MooncakeStoreConnector</code> for a pooled KV store, <code>LMCacheConnector</code> for prefix reuse. Three details that bite in practice: the side-channel port defaults to 5600 and must be unique per worker on a host (base + data-parallel rank); KV blocks are leased for 30 seconds by default and decode-side blocks live 480 seconds; and <code>kv_role="kv_both"</code> is deprecated for the NIXL connector — use producer/consumer.</p>
+<p><strong>Sizing the pools.</strong> The two pools want different GPU counts, and Little's law tells you the ratio: GPUs = arrival rate × service time / target utilization. At 20 requests per second, 2,000-token prompts, 200 output tokens: prefill needs ~2 GPUs, decode needs ~36 at 80% utilization — a 1:18 ratio. That ratio is traffic-dependent (short prompts, long outputs → even more decode-heavy), which is exactly why the pools must scale independently. Get the ratio wrong and the split just moves the queue from one pool to the other.</p>
+<p><strong>Beyond two pools.</strong> vLLM 0.32 added EPD disaggregation — a third pool for multimodal encoders — and the November 11 update extended it with metadata-only forwarding (the encoder sends a reference, not the pixels) and cross-encoder caching. Measured on Qwen3-Omni: <strong>+17.6% throughput, −13.0% mean latency</strong>. On DeepSeek V4.1 Flash over GB200: <strong>44–47% lower P90 TTFT, 6.6–9.5% higher per-GPU throughput</strong> at concurrency 64–128. The pattern generalizes: any stage with a different resource profile earns its own pool.</p>
+<h2>The state of the art: what splitting actually buys</h2>
+<p>The idea is three years old and the measurements have converged. <strong>Splitwise</strong> (Microsoft/UW, ISCA 2024) ran prefill on H100s and decode on power-capped A100s (700 W → 350 W barely slowed decode, while prefill slowed ~2×) and reported <strong>up to 2.35× throughput at the same power and cost budget, or 1.4× throughput at 20% lower cost</strong>. <strong>DistServe</strong> framed the metric — goodput — and measured 1.6 requests/s colocated vs 10 requests/s on 2 prefill + 1 decode GPUs, <strong>2.1× goodput per GPU</strong>, or equivalently 7.4× more requests at the same latency objective. <strong>Mooncake</strong> (Moonshot AI's KV-cache-centric design, behind Kimi) reported +525% throughput in simulation and +115% more requests absorbed on A800 hardware in production; vLLM's May 2026 engineering-blog benchmark on 12 GB200 GPUs measured <strong>3.8× throughput, 46× lower TTFT, and 8.6× lower end-to-end latency</strong> on agentic traces.</p>
+<p><img alt="The measured case for splitting: DistServe 2.1× goodput per GPU, Splitwise 2.35× throughput, Mooncake 3.8× throughput and 46× lower TTFT on vLLM. Paper and vendor benchmarks — see the honesty note." src="assets/pd_goodput.png" /></p>
+<p>Note what those wins have in common: they are latency and goodput wins, not raw-throughput wins. The GPUs do the same math as before, plus a copy. vLLM's docs say it in capitals: <strong>"Disaggregated prefill DOES NOT improve throughput."</strong> What it buys is separately tunable TTFT and tail ITL, and the freedom to run decode on cheaper, power-capped, or older GPUs. Anyone selling disaggregation as free throughput is selling the copy as if it were free compute.</p>
+<h2>Why it breaks</h2>
+<p><strong>The pool ratio is the whole game.</strong> Prefill and decode scale differently with traffic mix. A burst of long prompts starves the prefill pool while decode GPUs idle; a burst of long generations does the reverse. Static ratios waste GPUs; the production answer is autoscaling per pool against its own SLO (TTFT for prefill, TPOT for decode), which is operational work the colocated setup never needed.</p>
+<p><strong>Slow networks invert the win.</strong> Our notebook's decision rule: the split wins when the transfer tax is smaller than the stall it removes. On 100 GbE the tax is ~26% of the stall at every prompt length — a clear win. On 25 GbE the tax <em>exceeds</em> the stall (41.9 µs/token of transfer vs ~40 µs/token of prefill math), so splitting makes TTFT worse. If your prefill and decode pools are in different racks on old Ethernet, chunked prefill on one pool beats disaggregation across the wire.</p>
+<p><strong>The failure policy matters.</strong> If a KV transfer fails, vLLM's default is <code>fail</code> — the request errors rather than silently degrading. The alternative, <code>recompute</code>, re-runs prefill on the decode instance, which is exactly the interference you split to avoid, and the docs warn it hurts tail latency. Fail loudly; alert on it; do not recompute quietly.</p>
+<p><strong>Stateful proxies and reasoning models.</strong> Bidirectional KV transfer needs a stateful proxy (multi-turn conversations cache transfer parameters per conversation), and there is a live sharp edge: reasoning models can produce wrong results if thinking traces are stripped between turns (vLLM issue #43094). The feature is experimental in 0.33 for a reason — pin the version, read the release notes before upgrading, and test your exact model and proxy, not the toy example.</p>
+<h2>The interview angle</h2>
+<p>"When would you disaggregate prefill and decode?" The answer they want: when TTFT and TPOT have <em>different</em> SLO pressure — long prompts freezing decodes, or decode needing cheaper hardware — and when the KV transfer is cheap relative to the stall (fast interconnect, long prompts). Then the follow-up: "When wouldn't you?" — short prompts on slow Ethernet, low traffic where chunked prefill already caps the tail, or anywhere you cannot autoscale the two pools independently. And the number to have ready: 128 KB of KV cache per token for an 8B model, which turns a 32K-token prompt into 4 GB that has to cross the wire before the first token appears. In the real world, that number is why Mooncake pools KV cache across DRAM and NVMe instead of moving it fresh every time, and why prefix caching (last post's subject) and disaggregation are usually deployed together: cache what repeats, split what doesn't.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>Prefill is compute-bound and sets TTFT; decode is memory-bandwidth-bound and sets TPOT. One schedule cannot serve both — a whole 8K-token prefill freezes decoding users for ~330 ms while the average gap stays 7 ms.</li>
+<li>Chunked prefill (128-token chunks) caps the freeze at ~12 ms and is the right default at small scale. Disaggregation removes it and lets each phase scale on its own hardware — at the cost of a KV transfer and a proxy.</li>
+<li>The transfer is 128 KB/token for an 8B model: 0.3 µs/token on NVLink, 10.5 µs on 100 GbE, 41.9 µs on 25 GbE. On slow Ethernet the tax exceeds the stall, and splitting loses.</li>
+<li>vLLM 0.33 ships it as experimental: <code>--kv-transfer-config</code> with <code>NixlConnector</code>, <code>kv_producer</code> / <code>kv_consumer</code> roles, a proxy that rewrites the prefill leg to <code>max_tokens=1</code>, and EPD extending the same idea to encoders.</li>
+<li>It does not improve throughput. It buys separately tunable TTFT and tail ITL, and the freedom to run decode on cheaper GPUs — Splitwise's 2.35× and Mooncake's 3.8× are goodput and latency wins, not free compute.</li>
+</ul>
+<p><em>This is post #3 of the GDE vLLM serving series — next in the lane is the scheduler: continuous batching, chunked prefill, and who waits. Follow along on <a href="https://dev.to/danielsamfdo">dev.to/danielsamfdo</a> for the next part.</em></p>
+<p><em>Honesty note: Splitwise/DistServe/Mooncake figures are the papers' and vendors' own reported results (vLLM's Mooncake numbers are from its May 2026 engineering blog, measured on 12 GB200 GPUs on agentic traces — not independently replicated). The vLLM 0.33 config above was verified against the live docs (v0.33.0rc3, "Disaggregated Prefilling (experimental)") on Nov 13, 2026; the toy proxy script is linked from main, not pinned to the RC. The EPD figures are from vLLM's Nov 11, 2026 update. All simulation numbers are computed in the companion notebook for an 8B model at 40% MFU. No Meta content, per standing exclusion.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/pd_disaggregation.ipynb">pd_disaggregation.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
