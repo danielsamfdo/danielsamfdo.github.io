@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design, Plainly — Part 7: Consistent Hashing | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>System Design, Plainly — Part 7: Consistent Hashing</h1>
+<div class="meta">2026-11-14 &middot; System design (consistent hashing) — Part 7</div>
+<article class="post">
+<p>At 3 AM on a Thursday, an on-call engineer added one cache server to a fleet of eight — a routine scale-out, the kind that is supposed to be boring. By 3:05 AM, the database was on fire. Adding the ninth server had remapped 89% of the cache keys to new homes, so nearly every request missed the cache at once and fell through to the database. The scale-out meant to relieve the database had effectively deleted the cache.</p>
+<p>Six weeks later, the same team had the opposite incident: one cache server crashed, and its neighbor melted. The dead server's keys all landed on the next server clockwise, which doubled its load in a second and crashed too — and the one after it. The cascade stopped only when the fleet was down to four servers holding the whole dataset.</p>
+<p>Both incidents have the same root cause, and the same fix. The problem was never the servers. It was the map — <code>hash(key) % N</code> — and the fix is a circle.</p>
+<p>This is Part 7 of <strong>System Design, Plainly</strong>: one concept per post, evergreen, beginner-friendly, with the concrete numbers and the failure modes. Today: consistent hashing — the ring that lets you add a server without moving 89% of your keys, and the virtual nodes that keep one dead server from taking its neighbor down with it.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine a clock face with the numbers 0 to 100. You have eight friends standing around the clock, each at a random position. You also have 100,000 marbles, and each marble has a number. The rule is simple: a marble belongs to the first friend you meet going clockwise from the marble's number.</p>
+<p>Now a ninth friend joins and stands somewhere on the clock. Which marbles change hands? Only the ones between the new friend and the previous friend clockwise from them — the marbles in that one small arc. Every other marble keeps its owner. That is the whole idea: <strong>adding a server only moves the keys in the new server's arc, about 1/N of the total, instead of nearly all of them.</strong></p>
+<p>The naive alternative is <code>hash(key) % N</code>: divide the hash by the number of servers and take the remainder. It looks fine until N changes — then the remainder of almost every key changes, and 89% of your data moves. Our simulation makes it exact: with 100,000 keys, growing a cluster from 8 to 9 servers remaps <strong>89.0%</strong> of keys under modulo, and <strong>9.8%</strong> on a consistent hash ring. Growing 10 to 11: <strong>90.9%</strong> vs <strong>10.1%</strong>.</p>
+<p><img alt="Growing the cluster from 8 to 9 nodes remaps 89.0% of 100,000 keys under hash(key) % N, but only 9.8% on a consistent hash ring. Simulation in the companion notebook." src="assets/ch_modulo_vs_ring.png" /></p>
+<p>There is one catch, and it is the catch that causes the second incident. With one point per server on the clock, the arcs are random — and random arcs are wildly unequal. In our simulation, one of eight servers landed on an arc holding <strong>50.7% of all keys</strong> while another held 2.8%. The ring solves the membership problem and creates a load problem in the same stroke. The fix for the fix is virtual nodes, and it is the single most important detail in this post.</p>
+<h2>How it works: the ring, the vnodes, and the preference list</h2>
+<p><strong>The ring.</strong> Hash the keys and the servers into the same space — say, 0 to 2^64 — and arrange them on a circle. A key belongs to the first server clockwise from it. Lookups are a binary search over the sorted server points: O(log N). Adding a server inserts its point and steals exactly the keys in its arc; removing one hands its arc to the next server clockwise. Nothing else moves. This is Karger et al., 1997 — the paper consistent hashing was invented in, built for web caches, and the idea Akamai was founded on.</p>
+<p><strong>Virtual nodes.</strong> Instead of placing each physical server once, place it at 100–200 points around the ring (<code>server-3#0</code> … <code>server-3#149</code>). Now each server's responsibility is scattered into many small arcs, so the load evens out — and when a server dies, its arcs are scattered across <em>many</em> survivors instead of landing on one. The numbers from our simulation, 100,000 keys over 8 servers (ideal share: 12.5%):</p>
+<table>
+<thead>
+<tr>
+<th>vnodes per server</th>
+<th>busiest server</th>
+<th>quietest server</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>50.7%</td>
+<td>2.8%</td>
+</tr>
+<tr>
+<td>10</td>
+<td>16.6%</td>
+<td>5.5%</td>
+</tr>
+<tr>
+<td>50</td>
+<td>15.6%</td>
+<td>9.2%</td>
+</tr>
+<tr>
+<td>150</td>
+<td>15.3%</td>
+<td>11.4%</td>
+</tr>
+</tbody>
+</table>
+<p>One vnode per server is a lottery ticket: one machine holds half your data. At 150 vnodes the busiest server is within 3 points of ideal. More vnodes means a smoother distribution, at the cost of a bigger ring map and more gossip on membership change — 100–200 per node is the usual range. Cassandra defaulted to 256 vnodes per node for years, then dropped it to 16 in 4.x once the team decided the metadata wasn't worth it.</p>
+<p><img alt="Busiest vs quietest server share across 8 nodes, by virtual nodes per server. One vnode leaves a server holding half the keys; 150 vnodes brings the busiest to 15.3% against a 12.5% ideal. Simulation in the companion notebook." src="assets/ch_vnodes.png" /></p>
+<p><strong>Replication: the preference list.</strong> In a real store, a key doesn't live on one server — it lives on the first N servers clockwise (Dynamo's "preference list", 2007: usually N=3). Reads go to the first, writes to all three, and a dead server's keys are already sitting on its successors. This is where consistent hashing stops being a routing trick and becomes a storage design: the ring decides <em>which</em> servers hold a key, and the preference list decides <em>how many</em>.</p>
+<p><strong>Weighted nodes.</strong> Give a bigger server more vnodes — twice the capacity, twice the points — and it takes twice the keys. This is how heterogeneous fleets are handled without special cases: vnode counts are the weights.</p>
+<h2>The state of the art: five algorithms, one tradeoff</h2>
+<p>The ring is the classic, but it is not the only consistent hashing algorithm, and the differences matter. They all guarantee minimal movement — only ~1/N keys move on a membership change — but they differ in lookup cost, memory, and what kinds of cluster changes they survive:</p>
+<table>
+<thead>
+<tr>
+<th>Algorithm</th>
+<th>Year</th>
+<th>Lookup</th>
+<th>Memory</th>
+<th>The catch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rendezvous / HRW</td>
+<td>1996</td>
+<td>O(N) per key</td>
+<td>None</td>
+<td>Scans every node per lookup</td>
+</tr>
+<tr>
+<td>Hash ring (Karger)</td>
+<td>1997</td>
+<td>O(log N)</td>
+<td>O(N × vnodes)</td>
+<td>Needs vnodes for balance</td>
+</tr>
+<tr>
+<td>Jump consistent hash</td>
+<td>2014</td>
+<td>O(log N)</td>
+<td>None</td>
+<td>Only sequential add/remove — can't drop an arbitrary node</td>
+</tr>
+<tr>
+<td>Maglev</td>
+<td>2016</td>
+<td>O(1)</td>
+<td>O(M) lookup table</td>
+<td>Table rebuild on membership change</td>
+</tr>
+<tr>
+<td>AnchorHash</td>
+<td>2020</td>
+<td>O(1) avg</td>
+<td>O(A) anchor array</td>
+<td>Fixed capacity — pre-allocate the max cluster size</td>
+</tr>
+<tr>
+<td>MementoHash</td>
+<td>2023</td>
+<td>O(log N) worst</td>
+<td>Minimal</td>
+<td>Newest; handles random failures, no fixed capacity</td>
+</tr>
+</tbody>
+</table>
+<p>The lookup-cost column is not academic. We measured all three classic approaches on this machine: at 5,000 nodes, a ring lookup costs <strong>3.4 µs</strong>, Jump <strong>6.0 µs</strong>, and rendezvous <strong>7,302 µs</strong> — over <strong>2,000× slower</strong> than the ring, because rendezvous hashes the key against <em>every</em> node to find the winner. Rendezvous is beautifully simple (no state at all, and every node computes the same answer independently, which is why it survives in some load balancers), but O(N) per lookup is a tax you pay on every single request.</p>
+<p><img alt="Measured lookup cost vs cluster size: the ring and Jump stay near-flat (O(log N)); rendezvous grows linearly and is ~2,000× slower than the ring at 5,000 nodes. Benchmark in the companion notebook." src="assets/ch_lookup_cost.png" /></p>
+<p>The newer algorithms exist because each classic has a hole. <strong>Jump</strong> (Lamping &amp; Veach, Google, 2014) needs no state and no ring — just a hash and a loop — but it can only add or remove buckets in order, so a random node failure breaks its invariant. <strong>Maglev</strong> (Google, NSDI 2016) precomputes a permutation table of size M (a large prime, typically 65,537 entries) and looks up in O(1); it powers Google's network load balancer, and the table rebuild is the price of a membership change. <strong>AnchorHash</strong> (2020) re-hashes into a fixed anchor set until it lands on a live bucket — O(1) on average, minimal disruption — but the anchor set is pre-allocated, so the cluster has a ceiling. <strong>MementoHash</strong> (2023, arXiv:2306.09783) keeps a small "memento" of removed buckets, handles random failures, needs no fixed capacity, and its authors report it beats AnchorHash and DxHash on average-case lookup while matching them worst-case. If you are choosing in 2026: the ring with vnodes is the default, Jump is the right call when you have no place to keep state and membership only grows, and Maglev is the right call when lookups must be O(1) at very large scale.</p>
+<h2>Why it breaks: the four failure modes</h2>
+<p><strong>1. The cascade.</strong> This is the second incident from the opening. A server dies; its keys go to its clockwise successor; the successor, already hot, tips over and dies; its keys go to <em>its</em> successor. In our simulation with 1 vnode per server, node 3 dies holding 16.2% of keys — and node 6, which already held 50.7%, absorbs all of them and jumps to <strong>66.8%</strong>. With 150 vnodes, node 3 holds 11.4% and its keys scatter across all seven survivors, each gaining at most <strong>2.3 points</strong>. Virtual nodes are not an optimization. They are the difference between a node failure and a fleet failure.</p>
+<p><img alt="One node dies: with 1 vnode per server, node 6 already holds 50.7% of keys and absorbs node 3's whole arc, jumping to 66.8%. With 150 vnodes, node 3's 11.4% scatters across all survivors. Simulation in the companion notebook." src="assets/ch_failure_cascade.png" /></p>
+<p><strong>2. The hot key.</strong> Consistent hashing balances <em>keys</em>, not <em>load</em>. If one key gets a million requests a second — a celebrity profile, a viral post, a config key every service reads on startup — it lands on one server, and no number of vnodes helps, because all the traffic is one key on one arc. The ring is the wrong tool for skewed popularity. The fixes live outside the ring: replicate hot keys to several servers, split a hot key into shards (<code>user:123:0</code> … <code>user:123:9</code>), or cache it at the edge. If an interviewer asks "when does consistent hashing fail?", the hot key is the answer they want first.</p>
+<p><strong>3. The rebalancing storm.</strong> Adding a server moves ~1/N of keys — but 1/N of a large dataset is still a lot of data, and it all moves <em>at once</em>, from the servers that used to own it to the new one. A naive join can saturate the new server's disk and network before it serves a single request. Production systems throttle the handoff (Cassandra streams ranges in the background; Dynamo's preference lists let the new node catch up before it takes reads) and add servers one at a time, never in a batch. The ring guarantees <em>which</em> keys move, not <em>how fast</em> they should.</p>
+<p><strong>4. The hash you didn't test.</strong> Every property above assumes the hash function spreads keys uniformly. A bad hash — a weak function, or a good function fed structured keys like sequential user IDs with a common prefix — clusters keys on part of the ring and quietly reintroduces the imbalance vnodes were supposed to fix. This is also why the ring needs a real hash (SHA-256, xxHash, Murmur) and not <code>hash()</code> in a language where it is randomized per process: if two servers disagree about where a key lives, the key is effectively lost. Same hash, same ring, on every node, or nothing works.</p>
+<p>One more, for the interview: <strong>consistent hashing is not consensus.</strong> The ring tells every node where a key <em>should</em> live, but it does not tell them when membership changed. If two servers disagree about the membership list, they route the same key to different homes. Real systems pair the ring with gossip (Cassandra), a coordinator (DynamoDB's control plane), or a strongly consistent membership view — the ring is the map, not the agreement about the map.</p>
+<h2>The interview angle</h2>
+<p>"Design a distributed cache" is the question this post is really about, and the grading rubric is almost entirely the failure modes above. The answer that passes:</p>
+<ol>
+<li><strong>Start with the problem, not the algorithm.</strong> <code>hash(key) % N</code> remaps ~89% of keys when N changes — say the number, don't gesture at it. The requirement is minimal movement on membership change, which is what the ring buys.</li>
+<li><strong>Draw the ring, then immediately add virtual nodes.</strong> The candidate who draws one point per server and stops has drawn a system where one server holds half the data. Name the vnode count (100–200) and the reason (load balance <em>and</em> failure spread).</li>
+<li><strong>Name the lookup cost and pick the algorithm by it.</strong> Ring O(log N) with a bisect; rendezvous O(N) and why that rules it out at scale; Jump when there is no state to keep; Maglev when lookups must be O(1). The 2,000× number at 5,000 nodes is the kind of concrete figure that ends the discussion.</li>
+<li><strong>Name the failure modes unprompted</strong>: the cascade (dead node's successor doubles), the hot key (hashing balances keys, not load), the rebalancing storm (throttle the handoff), and the membership-agreement problem (the ring is not consensus).</li>
+<li><strong>Close with replication</strong>: the preference list, N=3, and what happens on read when one replica is down — which is the bridge to Part 8.</li>
+</ol>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Modulo is the bug.</strong> <code>hash(key) % N</code> remaps ~89% of keys when the cluster grows 8 → 9. The ring moves ~10% — the keys that must move, and no others.</li>
+<li><strong>Virtual nodes are not optional.</strong> One point per server leaves one machine holding 50.7% of the keys; 150 vnodes brings the busiest to 15.3% against a 12.5% ideal — and turns a node failure from a cascade into a rounding error.</li>
+<li><strong>Lookup cost is the algorithm choice.</strong> Rendezvous is stateless and elegant and 2,000× slower than the ring at 5,000 nodes. Jump is stateless and fast but can't handle a random failure. Maglev is O(1) but rebuilds a table on every change.</li>
+<li><strong>The ring balances keys, not load.</strong> A hot key still melts one server. Replicate it, split it, or cache it at the edge — the ring can't help you.</li>
+<li><strong>The ring is a map, not an agreement.</strong> Every node must share the same membership view, or the same key lives in two places at once. Pair the ring with gossip or a control plane.</li>
+</ul>
+<p><em>Follow for the next part: Part 8 is </em><em>Replication</em><em> — the preference list, quorums, and what "three copies" actually guarantees when a server lies. If this series is useful, the follow button on <a href="https://dev.to/danielsamfdo">the dev.to profile</a> is where the next part lands first.</em></p>
+<p><em>Honesty note: the 89.0% / 9.8% remap figures, the vnode balance table, the cascade numbers, and the lookup benchmarks are simulations run on this machine (companion notebook) — real measurements of a toy ring, not production telemetry. The Karger 1997, Dynamo 2007, Jump 2014, Maglev 2016, AnchorHash 2020, and MementoHash 2023 (arXiv:2306.09783) facts are from the papers; MementoHash's "beats AnchorHash/DxHash on average case" is the authors' own reported result. Cassandra's 256 → 16 vnode change is from the project's own history. No Meta content, per the standing exclusion.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/consistent_hashing.ipynb">consistent_hashing.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
