@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speculative Decoding in vLLM: EAGLE, MTP, and Draft Models — When Drafting Pays and When It Costs | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Speculative Decoding in vLLM: EAGLE, MTP, and Draft Models — When Drafting Pays and When It Costs</h1>
+<div class="meta">2026-11-20 &middot; GDE #5 / vLLM serving (speculative decoding — EAGLE, MTP, draft models)</div>
+<article class="post">
+<p>Your 70B model generates one token per forward pass. Each pass reads all 140 GB of weights from GPU memory while the arithmetic units sit mostly idle — decode is memory-bound, not compute-bound. Checking five candidate tokens in one pass costs barely more than checking one, because the weights are read once either way. Speculative decoding exploits exactly that: a cheap drafter guesses the next few tokens, the big model verifies them all in a single pass, and you keep the longest prefix it agrees with. Done right, it is a 2–3x speedup with zero change to the output distribution. Done wrong, it is a second model burning GPU time to produce tokens you throw away.</p>
+<p>This is GDE post #5 in the vLLM serving series: the four ways to draft in vLLM 0.33.0, the one formula that decides whether drafting pays, and the three ways it breaks — with a notebook that measures your acceptance rate and emits the configs.</p>
+<h2>The ELI5 version</h2>
+<p>Imagine a senior engineer (the target model) and an intern (the draft model). The senior is slow but always right; the intern is fast and usually right. Instead of the senior writing every word herself, the intern drafts the next five words and the senior reads them once, crossing out from the first mistake. If the intern got four right, the senior kept four words for the price of one read — plus she writes one more word herself for free, the bonus token. If the intern got zero right, the senior still wrote one word, so the step was never wasted — it just cost the intern's time on top.</p>
+<p>The intern's hit rate is everything. If she is right 80% of the time per word, five drafted words keep ~3.7. If she is right 50% of the time, the same five keep ~1.9. And the intern is not free: a 1B draft model for an 8B target costs real GPU time per step. Below some hit rate, the intern costs more than she saves — and the senior would have been faster alone.</p>
+<h2>How it works: propose, verify, keep the prefix</h2>
+<p>Speculative decoding is two independent ideas from 2022–2023 (Leviathan et al., Google Research, arXiv:2211.17192; Chen et al., DeepMind, arXiv:2302.01318), both proving the same thing: with rejection sampling, the output distribution is <em>identical</em> to the target model alone. Speculation never changes what the model says — only how fast it says it. That losslessness is why it is safe to turn on; the only question is whether it is faster.</p>
+<p><strong>The acceptance math is exact.</strong> Call the per-token acceptance probability <code>a</code> — the chance the target agrees with a drafted token, given all previous drafts were accepted. With draft length <code>N</code>, the expected number of tokens kept per verifier pass (including the bonus token) is:</p>
+<pre><code>E[kept] = (1 − a^(N+1)) / (1 − a)
+</code></pre>
+<p><img alt="Expected accepted tokens per verifier pass vs acceptance rate, for draft lengths 1-7. At a = 0.8, drafting 5 tokens keeps ~3.7; at a = 0.5 the same 5 keep ~1.9. Simulation in the companion notebook." src="assets/specdec_acceptance.png" /></p>
+<p>At <code>a = 0.8</code>, drafting 5 tokens keeps ~3.7; at <code>a = 0.5</code> the same 5 keep ~1.9. The curve has a knee: going from N=3 to N=7 at <code>a = 0.5</code> buys 1.88 → 1.99 tokens — four extra draft tokens for +0.11 kept. Longer drafts help only while acceptance is high.</p>
+<p><strong>Speedup has a second lever: draft cost.</strong> If the draft costs a fraction <code>c</code> of one target pass, wall time per accepted token is <code>(N·c + 1) / E[kept]</code>, so <code>speedup = E[kept] / (N·c + 1)</code>. The optimal draft length grows with <code>a</code> and shrinks with <code>c</code> — there is no universal N. Our notebook computes it: with a cheap EAGLE head (<code>c = 0.05</code>), the optimal N is 3 at <code>a = 0.5</code>, 6 at <code>a = 0.7</code>, 8 at <code>a = 0.8</code>. With a full draft model (<code>c = 0.20</code>), the optimal N is 1 at <code>a = 0.5</code> — one drafted token, because each additional draft costs more than it can return. Start at N=3–5 and sweep; never copy a headline's N.</p>
+<p><strong>The four ways to draft in vLLM 0.33.0.</strong> Everything is one JSON argument, <code>--speculative-config</code>, and the method decides where drafts come from:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Draft source</th>
+<th>Needs a second artifact?</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ngram</code></td>
+<td>Copies n-grams from the prompt</td>
+<td>No</td>
+<td>Code edits, JSON extraction — output that repeats the input</td>
+</tr>
+<tr>
+<td><code>draft_model</code></td>
+<td>A small same-tokenizer sibling (e.g. 1B drafting for 8B)</td>
+<td>Yes — the draft checkpoint</td>
+<td>General use when no trained head exists</td>
+</tr>
+<tr>
+<td><code>eagle</code> / <code>eagle3</code></td>
+<td>A trained head reading the target's own hidden states</td>
+<td>Yes — the EAGLE head</td>
+<td>Open-ended chat and code, highest acceptance</td>
+</tr>
+<tr>
+<td><code>mtp</code></td>
+<td>Multi-token-prediction heads built into the target checkpoint</td>
+<td>No — ships inside the model</td>
+<td>Qwen3.5, DeepSeek-V3/R1, GLM-5, Gemma 4</td>
+</tr>
+<tr>
+<td><code>suffix</code></td>
+<td>Matches earlier generated text</td>
+<td>No</td>
+<td>Repetitive agent loops</td>
+</tr>
+<tr>
+<td><code>dflash</code> / <code>dspark</code></td>
+<td>Block-diffusion / semi-autoregressive drafters (new in 0.33, with refiners)</td>
+<td>Yes</td>
+<td>DeepSeek-V4 ships DSpark under <code>mtp.*</code></td>
+</tr>
+</tbody>
+</table>
+<p>Two 0.33 changes to know if you are working from an older guide: <strong>Medusa and the MLP speculators were removed in 0.33.0</strong> — migrate to EAGLE, MTP, or DSpark — and 0.33 adds an <strong>opt-in lossy verification policy</strong> (FLy: 1.041–1.310x over standard spec decode, median 1.147x, ≥96.3% accuracy retention in the PR table — covered in GDE #1). Standard verification stays the default and stays lossless. Draft models landed on Model Runner V2 in v0.31.0, so the whole stack runs on the current engine.</p>
+<h2>The state of the art: EAGLE-3 is the default, MTP is the future</h2>
+<p><strong>EAGLE-3</strong> (arXiv:2503.01840) is the current production standard, merged into vLLM, SGLang, and TensorRT-LLM. EAGLE-1 drafted from the target's hidden states with a one-layer transformer; EAGLE-2 added a dynamic draft tree — propose a small tree of candidates, verify them in one pass with tree attention, walk the best path. EAGLE-3 drops the feature-prediction loss entirely (train directly on token prediction) and adds training-time test: during training, the draft's own previous predictions are fed back as inputs, aligning train and test distributions so errors stop compounding. The paper claims 3.0–6.5x over vanilla decoding with acceptance lengths up to ~7.5 tokens on HumanEval. On instruction-following tasks, acceptance runs 0.80–0.88 on Llama and Qwen families (EAGLE-2: 0.72–0.78).</p>
+<p>The independent numbers land below the paper's ceiling, as they should — and they still clear the bar. A 500-prompt production benchmark (youngju.dev) measured, at batch 1–4 on general chat:</p>
+<p><img alt="Five drafting methods on an independent 500-prompt benchmark: n-gram 0.41 acceptance / 1.38x speedup, vanilla draft model 0.62 / 1.95x, Medusa-2 0.68 / 2.21x, EAGLE-1 0.73 / 2.52x, EAGLE-3 0.81 / 2.89x. Medusa-2 was removed from vLLM 0.33.0." src="assets/specdec_methods.png" /></p>
+<p>Red Hat's vLLM testing measured EAGLE-3 at up to 2.5x across scenarios, with per-request latency down 1.8x on 8B and 1.6x on 70B at low request rates. On an H200, Spheron measured Llama 3.3 70B FP8 going from ~1,700 to ~6,200 tokens/sec with EAGLE-3 at batch 1–4 — 3.6x, and cost per 1M output tokens from ~$0.23 to ~$0.06 at May 2026 spot rates. Our toy speedup model reproduces the independent benchmark: at <code>a = 0.81</code>, N=5, <code>c = 0.06</code> it predicts 2.91x against the measured 2.89x — a first-order model, but the right first order.</p>
+<p><strong>MTP is the zero-artifact option.</strong> Model makers increasingly ship the drafter inside the checkpoint: Qwen3.5, DeepSeek-V3/R1, GLM-5, and Google's Gemma 4 (Apache 2.0) all carry multi-token-prediction heads. Google claims up to 3x from Gemma 4's MTP drafters — a vendor claim, measure it yourself — but the operational point is real: <code>{"method": "mtp", "num_speculative_tokens": 1}</code> and there is no second download, no tokenizer-matching risk, no separate artifact to version. DeepSeek-V4 ships its DSpark draft under <code>mtp.*</code> the same way. Vendors now publish drafter training paths too: AMD's ROCm team described EAGLE-3 training on Instinct MI350X with Quark 0.13 on October 27, 2026, and NVIDIA's NeMo carries an EAGLE-3 recipe. A draft path you ruled out earlier this year may exist today.</p>
+<h2>Why it breaks</h2>
+<p><strong>The 50% cliff.</strong> The toy model gives exact breakevens at N=5: an EAGLE head (<code>c = 0.05</code>) breaks even at <code>a ≈ 0.20</code>, a typical head (<code>c = 0.10</code>) at <code>a ≈ 0.33</code>, and a real draft model (<code>c = 0.20</code>) at <code>a ≈ 0.51</code>. That last number is where the field's rule of thumb comes from — practitioner guidance (Introl, Red Hat) converges on speculation turning net negative below roughly 50% acceptance. The toy model omits real overheads (verification of rejected tokens, draft scheduling, KV-cache pressure), so treat <code>a ≈ 0.50</code> as the operational floor for all three, not just the draft-model case:</p>
+<p><img alt="Speedup vs acceptance rate for three draft costs at draft length 5. EAGLE head breaks even at a ≈ 0.20, typical head at ≈ 0.33, draft model at ≈ 0.51; below the line speculation is slower than doing nothing." src="assets/specdec_cliff.png" /></p>
+<p>If your mean acceptance length is under ~2.0 tokens per step, turn speculation off for that workload. The fix is a better drafter or a shorter draft, never a longer one — a longer draft at low acceptance just proposes more tokens to reject.</p>
+<p><strong>The batch-size collapse.</strong> Speculation exploits idle GPU compute while decode is memory-bound. As the batch grows, the GPU becomes compute-bound on its own and verification turns into overhead. "Efficient Speculative Decoding for Llama at Scale" (arXiv:2508.08192) measured EAGLE on Llama-3-70B falling from <strong>1.96x at batch 1 to 1.21x at batch 128</strong> — the gain mostly gone. The serving study (arXiv:2406.14066) adds the request-rate version: past ~12 req/s, 5-token proposals stop helping; past ~16 req/s, even 3-token proposals slow you down.</p>
+<p><img alt="EAGLE speedup on Llama-3-70B vs serving batch size: 1.96x at batch 1, 1.21x at batch 128 (reported endpoints, arXiv:2508.08192); curve is an interpolation between them. Past ~12 req/s, 5-token proposals stop helping." src="assets/specdec_batch.png" /></p>
+<p>vLLM 0.33 ships <code>disable_by_batch_size</code> for exactly this reason: turn speculation off above the batch where it stops paying on your hardware. Speculative decoding is a latency tool for memory-bound serving — a single-user assistant benefits most; a saturated multi-tenant API often sees no gain at all.</p>
+<p><strong>Three numbers called "acceptance rate" — read the right one.</strong> This is the most common way to misread a spec-decode dashboard. The papers' <code>α</code> is the per-token conditional probability (EAGLE-3: 0.80–0.88). vLLM's <code>draft_acceptance_rate</code> is accepted over <em>all</em> proposed draft tokens (<code>num_accepted_draft_tokens / num_draft_tokens</code>) — at <code>α = 0.82</code>, N=5 it reads ≈ 0.57, because tokens past the first rejection were proposed but never reached. And <code>mean_acceptance_length</code> is <code>1 + accepted / steps</code> — tokens emitted per verify step including the bonus token, the number the speedup actually depends on. The notebook simulates all three from the same run so the mapping is explicit: <code>α = 0.82</code> reads as vLLM rate 0.57 and mean acceptance length ~3.9. vLLM exposes them per-request in <code>metrics.speculative_decoding</code> (enable with <code>--per-request-spec-decode-metrics</code>, shape from PR #48915) and server-aggregated at <code>/metrics</code> as <code>vllm:spec_decode_num_accepted_tokens_total</code> / <code>vllm:spec_decode_num_draft_tokens_total</code>. Judge the drafter by mean acceptance length; judge the config by the speedup model.</p>
+<p><strong>The config bugs that eat the speedup.</strong> A draft model with a different tokenizer silently proposes tokens the target can never accept — acceptance collapses to near zero and the only symptom is a slow server. A draft that is too big (the 10–20x size-ratio rule: a 70B target pairs with a 3–8B draft; same-family pairs reach 75–85% acceptance) costs more per step than the hits return. Drafts starve the KV cache on long contexts, because every speculative token reserves cache it may not keep. And <code>num_speculative_tokens</code> set too high wastes verification on tokens past the knee — start at 3–5 and sweep. The DiffVibe 0.33 lab's discipline applies: run the baseline twice (the gap is your noise floor), sweep concurrency at 1, 4, and 16 (a method that wins at 1 can lose at 16), and check identical output first — a handful of mismatches at high concurrency is floating-point drift, most text differing is a config bug.</p>
+<h2>The interview angle</h2>
+<p>"How does speculative decoding work, and when does it not help?" The answer they want: a cheap drafter proposes N tokens, the target verifies them all in one forward pass, rejection sampling keeps the output distribution identical, and you keep the longest accepted prefix plus a bonus token. Then the number to have ready: expected kept tokens <code>E = (1 − a^(N+1)) / (1 − a)</code> — at <code>a = 0.8</code>, N=5 that's ~3.7. Then the follow-ups: "When would you turn it off?" — below ~50% acceptance, or at high batch/concurrency, where the GPU is compute-bound and verification is pure overhead. "EAGLE vs a draft model?" — EAGLE drafts from the target's hidden states, so it needs a trained head but reaches 0.80–0.88 acceptance; a draft model needs no training but a second artifact and tops out around 0.62 in the independent benchmark. "What does vLLM 0.33 change?" — one <code>--speculative-config</code> JSON, Medusa removed, MTP built into the new checkpoints, <code>disable_by_batch_size</code> for the batch collapse.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>Speculative decoding is lossless (rejection sampling, Leviathan et al. 2022 / Chen et al. 2023) — it never changes what the model says. It only pays when the drafter is good and the GPU is memory-bound.</li>
+<li>One formula decides it: <code>E[kept] = (1 − a^(N+1)) / (1 − a)</code>, and <code>speedup = E[kept] / (N·c + 1)</code>. At <code>a = 0.8</code>, N=5 keeps ~3.7 tokens; at <code>a = 0.5</code> the same 5 keep ~1.9. Optimal N grows with acceptance and shrinks with draft cost — sweep it, don't copy it.</li>
+<li>EAGLE-3 is the default: 0.80–0.88 acceptance, 2.89x in the independent 500-prompt benchmark, up to 2.5x in Red Hat's vLLM testing, 3.6x on an H200 for Llama 3.3 70B FP8. MTP is the zero-artifact option when the checkpoint ships the heads.</li>
+<li>The 50% cliff is real: a draft model breaks even at <code>a ≈ 0.51</code> in the toy model, and real overheads push every method's breakeven up. Mean acceptance length under ~2.0 tokens/step means turn it off.</li>
+<li>The batch collapse is real too: 1.96x at batch 1 → 1.21x at batch 128, and past ~12 req/s even 5-token proposals stop helping. Use <code>disable_by_batch_size</code>; speculation is a latency tool, not a throughput tool.</li>
+<li>Three numbers share one name: the papers' <code>α</code> (0.80–0.88 for EAGLE-3), vLLM's <code>draft_acceptance_rate</code> (accepted / all proposed — 0.57 at the same <code>α</code>, N=5), and <code>mean_acceptance_length</code> (tokens per step including bonus — ~3.9). Read the right one before concluding your drafter is broken.</li>
+<li>vLLM 0.33: one <code>--speculative-config</code> JSON; Medusa and MLP speculators removed; DFlash/DSpark refiners and opt-in lossy verification added; per-request acceptance metrics in <code>metrics.speculative_decoding</code>.</li>
+</ul>
+<p><em>This is post #5 of the GDE vLLM serving series — next is the low-precision KV cache: FP8 and NVFP4, and the memory arithmetic, on Tue Nov 24. Follow along on <a href="https://dev.to/danielsamfdo">dev.to/danielsamfdo</a> for the next part.</em></p>
+<p><em>Honesty note: the acceptance and speedup math is exact given the per-token acceptance model (independent acceptance, the standard toy model); the notebook's breakeven and optimal-N tables are computed from it. The batch-size curve is an exponential interpolation between the two endpoints reported in arXiv:2508.08192 (1.96x at batch 1, 1.21x at batch 128), not measured points. All benchmark figures are the cited sources' own reported results, not independently tested here: EAGLE-3 paper claims (arXiv:2503.01840, 3.0–6.5x, up to ~7.5 accepted tokens on HumanEval), youngju.dev 500-prompt benchmark (2.89x EAGLE-3), Red Hat vLLM testing (up to 2.5x), Spheron H200 numbers (May 2026 spot pricing), Google's Gemma 4 "up to 3x" MTP claim, and the arXiv:2406.14066 serving thresholds (~12/~16 req/s). The 10–20x draft/target size rule and same-family 75–85% acceptance are practitioner guidance, not a paper result. No Meta content, per standing exclusion.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/spec_decoding_vllm.ipynb">spec_decoding_vllm.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
