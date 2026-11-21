@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design, Plainly — Season 2, Part 2: Consensus (Raft & Paxos) | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>System Design, Plainly — Season 2, Part 2: Consensus (Raft & Paxos)</h1>
+<div class="meta">2026-11-21 &middot; System design (consensus — Raft & Paxos) — Season 2, Part 2</div>
+<article class="post">
+<p>Part 1 gave the cluster a leader. This part answers the harder question: once the leader exists, how do five machines that crash, lag, and get partitioned agree on <em>one</em> version of the truth — and never change their minds about it afterward?</p>
+<p>That question is consensus, and it is the load-bearing wall of distributed systems. Leader election picks who talks; consensus decides what was said. Every strongly consistent database you have used — etcd behind Kubernetes, CockroachDB, TiKV, Spanner — is a consensus protocol with a storage engine bolted on. Get consensus wrong and you get two leaders writing two different balances to the same account. Get it right and a cluster of flaky machines behaves like one machine that never crashes, never lies, and never forgets.</p>
+<p>The benchmark hook for this part is the quorum-loss arithmetic: how often a cluster of a given size loses the ability to agree at all. At 1% per-node downtime, a 3-node cluster is quorum-less <strong>157 minutes a year</strong>. A 5-node cluster: <strong>5.2 minutes</strong>. A 7-node cluster: <strong>11 seconds</strong>. Each extra pair of nodes buys roughly 30× — and the price is one more round trip on every write.</p>
+<h2>The ELI5 version</h2>
+<p>Five friends share one notebook where they record who owes whom money. The rule: a new line only counts once at least three of the five have copied it into their own notebooks. Three is the magic number again — any two groups of three share at least one person, so two contradictory lines can never both get three copies. That overlap is the whole safety argument, and it has a name: a <strong>quorum</strong>.</p>
+<p>Now the twist that makes it interesting. The friends don't write at the same time, they shout across a noisy room, and sometimes one of them falls asleep mid-sentence. So they add a referee: one friend is the <strong>leader</strong>, and only the leader is allowed to propose new lines. The others just copy what the leader says and shout back "copied it." A line is <strong>committed</strong> — permanent, never to be erased — the moment three notebooks hold it. If the leader falls asleep, Part 1's election picks a new one, and the new leader first asks everyone what they already copied, so nothing committed is ever lost.</p>
+<p>That is Raft in one paragraph. Paxos is the same game with no permanent referee: anyone may propose a line at any time, but each proposal carries a number, and a higher number beats a lower one. It works — it was proven correct in 1989 — but when two friends propose at once, they keep outbidding each other and nothing gets written. Raft's insight was that a stable leader turns a two-round negotiation into a one-round copy job, and that understandability is a feature, not a luxury.</p>
+<h2>How it works: two phases, one log, a majority</h2>
+<p>Both protocols solve the same problem — a <strong>replicated state machine</strong>: every node applies the same commands in the same order, so every node ends up in the same state. The log is the system. Consensus is just agreeing on what goes into the log, and in what order.</p>
+<p><strong>Paxos (Lamport, 1989; published 1998)</strong>, single-decree version, has three roles — proposers, acceptors, learners — and two phases per value:</p>
+<ol>
+<li><strong>Prepare (Phase 1).</strong> A proposer picks a ballot number <em>n</em> and asks a majority: "promise me you won't accept anything numbered below <em>n</em>, and tell me the highest-numbered value you've already accepted." If a majority promises, the proposer is bound: if any acceptor already accepted a value, the proposer <em>must</em> re-propose that value, not its own.</li>
+<li><strong>Accept (Phase 2).</strong> The proposer sends "accept value <em>v</em> at ballot <em>n</em>" to a majority. Once a majority accepts, <em>v</em> is decided — forever. Any later proposer with a higher ballot reaches at least one of those acceptors in its prepare phase (majorities intersect) and is forced to re-propose <em>v</em>.</li>
+</ol>
+<p>That forced re-proposal is the entire safety proof. A value, once decided by a majority, can never be un-decided, because every future majority overlaps the deciding one and inherits its choice.</p>
+<p><strong>Multi-Paxos</strong> is the production version: elect a stable leader once, and the leader skips Phase 1 for every subsequent log slot — steady state is one round trip per command. <strong>Raft (Ongaro &amp; Ousterhout, 2014)</strong> starts from that observation and rebuilds the protocol around it, decomposing consensus into three subproblems a human can hold in their head: leader election (Part 1), log replication, and safety.</p>
+<p>Raft's log replication, step by step:</p>
+<ol>
+<li><strong>The client writes to the leader.</strong> The leader appends the entry to its own log, uncommitted.</li>
+<li><strong>The leader replicates.</strong> It sends <code>AppendEntries</code> RPCs to every follower, each carrying the entry plus the index and term of the <em>previous</em> entry — the consistency check that keeps logs aligned.</li>
+<li><strong>Followers store and ack.</strong> A follower accepts only if its log matches at the previous index and term; if it doesn't, the leader steps back one entry at a time until the logs line up, then overwrites the divergent tail. Raft logs never have holes.</li>
+<li><strong>Commit at a majority.</strong> Once a majority has stored the entry, the leader advances its commit index and applies the entry to the state machine. The next heartbeat tells followers to commit it too.</li>
+</ol>
+<p>In our toy timeline, a 5-node cluster commits entry 42 at the third ack — 0.9 ms after the leader appended it. The fourth follower's ack is late and irrelevant: the entry was already committed.</p>
+<p><img alt="Raft log replication, 5 nodes: entry 42 commits at the 3rd ack (t = 0.9 ms). The 4th follower's late ack changes nothing — the entry was already committed. Schematic with illustrative delays; the commit-at-majority rule is simulated in the companion notebook." src="assets/consensus_log_replication.png" /></p>
+<p><strong>The availability arithmetic is the payoff, and it is exact binomial math, not a vibe.</strong> Assume each node is independently down 1% of the time. A single node is unavailable 5,256 minutes a year. A 3-node cluster loses quorum only when 2+ nodes are down — 157 minutes a year. Five nodes: 5.2 minutes. Seven nodes: 11 seconds. Each extra pair buys ~30×:</p>
+<p><img alt="Expected minutes per year with NO quorum, at 1% per-node downtime: 1 node 5,256 min; 3 nodes 157 min; 5 nodes 5.2 min; 7 nodes 11 sec. Exact binomial arithmetic in the companion notebook." src="assets/consensus_quorum_loss.png" /></p>
+<p>The same math at 5% per-node downtime is less forgiving — 3 nodes lose quorum 3,811 minutes a year (2.6 days), 5 nodes 609 minutes, 7 nodes 102 minutes — which is why nobody runs a 3-node etcd on flaky hardware and calls it highly available. And the catch from Part 1 still applies: this counts <em>electability</em>, not health. A 3-node cluster tolerates one failure, 5 nodes two, 7 nodes three. Even sizes buy nothing — a 4-node cluster tolerates 1 failure, the same as 3, while paying for an extra replica on every write.</p>
+<p><strong>The cost of agreement is one round trip to a majority — and the region, not the quorum, sets the price.</strong> A commit waits for the (quorum−1)th fastest follower, so in the same datacenter (0.5 ms median RTT) a 3-node cluster commits in ~0.41 ms and a 7-node cluster in ~0.47 ms: the bigger quorum costs almost nothing. Cross-region (80 ms median RTT) the same commits cost ~66 ms and ~75 ms. The quorum size is a rounding error; the geography is the bill:</p>
+<p><img alt="Median commit latency by deployment shape: same-datacenter ~0.4 ms, cross-AZ ~1.7 ms, cross-region ~66-75 ms — the quorum size (3 vs 5 vs 7) moves the number by ~15%, the region by ~160x. Order-statistic model in the companion notebook." src="assets/consensus_commit_latency.png" /></p>
+<h2>Paxos vs Raft: same guarantees, different failure mode</h2>
+<p>On paper they are equivalent: same quorum, same 1-RTT steady state with a stable leader, same safety under any partition. The difference is what happens when the leader is <em>not</em> stable.</p>
+<p>Classic Paxos has a liveness problem: <strong>dueling proposers</strong>. Two proposers with rising ballot numbers can pre-empt each other forever — A prepares at ballot 5, B prepares at 6 and blocks A, A retries at 7 and blocks B — and no value is ever decided. The FLP impossibility result (Fischer, Lynch, Paterson, 1985) says this is fundamental: no deterministic protocol can guarantee both safety and liveness in a fully asynchronous network with even one crash. Every real protocol guarantees safety always and liveness only when the network eventually behaves — <em>partial synchrony</em> — and Paxos needs a stable leader (or randomized backoff) to get there. We simulated the duel: with a round lasting a quarter of the contention window, one proposer commits in 1.00 round; two take 1.79; three take 2.37; six take <strong>5.62</strong> rounds of wasted work:</p>
+<p><img alt="Mean rounds to commit one value vs concurrent proposers: 1 proposer 1.00 round, 2 proposers 1.79, 6 proposers 5.62. A stable leader (Raft / Multi-Paxos) commits in 1 round, always. Simulation in the companion notebook." src="assets/consensus_dueling.png" /></p>
+<p>Raft removes the duel by construction: there is exactly one leader per term, elected by majority vote, and only the leader proposes. A candidate that loses an election waits out a randomized timeout instead of immediately re-proposing at a higher ballot. The cost is a restriction Paxos doesn't have — Raft's log-matching property forces logs to be strict prefixes, so a new leader can never have holes in its log, and a follower with a divergent tail gets overwritten rather than reconciled slot by slot. In practice that restriction is what makes Raft implementable: etcd's Raft library, Consul, CockroachDB, TiKV, and Kafka's KRaft all run it, while plain Paxos survives mostly in its Multi-Paxos form inside Spanner and Chubby.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Paxos / Multi-Paxos</th>
+<th>Raft</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Steady-state commit</td>
+<td>1 RTT (stable leader)</td>
+<td>1 RTT</td>
+</tr>
+<tr>
+<td>First write / leader change</td>
+<td>2 RTTs (prepare + accept)</td>
+<td>1 RTT after election</td>
+</tr>
+<tr>
+<td>Quorum</td>
+<td>⌊N/2⌋+1</td>
+<td>⌊N/2⌋+1</td>
+</tr>
+<tr>
+<td>Log structure</td>
+<td>Per-slot agreement, holes possible</td>
+<td>Strict prefix, no holes</td>
+</tr>
+<tr>
+<td>Leader election</td>
+<td>Implicit (highest ballot wins)</td>
+<td>Explicit terms + RequestVote</td>
+</tr>
+<tr>
+<td>Failure mode</td>
+<td>Dueling proposers stall liveness</td>
+<td>Split votes stall one term, then retry</td>
+</tr>
+<tr>
+<td>Production</td>
+<td>Spanner, Chubby, Megastore</td>
+<td>etcd, Consul, CockroachDB, TiKV, KRaft</td>
+</tr>
+</tbody>
+</table>
+<h2>The state of the art: you almost never implement consensus yourself</h2>
+<p>The modern rule is the same as Part 1's: <strong>use a consensus store, don't write one.</strong> etcd (Raft) is the coordination plane of every Kubernetes cluster on Earth. ZooKeeper runs ZAB, a Multi-Paxos cousin. Spanner runs Paxos per shard with TrueTime clocks to shrink the uncertainty window. CockroachDB runs Raft per <em>range</em> — thousands of tiny consensus groups, each with its own leader — so a single slow disk stalls one range, not the database. TiKV does the same per region.</p>
+<p>Three refinements from the last decade do the heavy lifting inside those systems:</p>
+<ul>
+<li><strong>Joint consensus for membership change.</strong> Adding or removing a node is itself a consensus decision, and doing it wrong creates two majorities. Raft's joint consensus runs the old and new configuration simultaneously — an entry commits only when a majority of <em>both</em> configs store it — so there is never a moment when two different quorums can both commit. etcd also supports the simpler one-server-at-a-time change for the common case.</li>
+<li><strong>PreVote: stopping the disruptive rejoin.</strong> A partitioned node that rejoins with a stale term used to force an election it could never win, disrupting a healthy leader. PreVote (now default in etcd) makes the candidate first ask "would anyone vote for me?" — if the answer is no, it never increments its term. One check, and a whole class of availability incidents disappears.</li>
+<li><strong>ReadIndex / leader leases for linearizable reads.</strong> A read that skips consensus can return stale data from a deposed leader. etcd defaults to ReadIndex: confirm leadership with one heartbeat round, then serve the read from the leader's state. Cheaper than a write, still linearizable.</li>
+</ul>
+<p>The research frontier in 2026 is still Raft, refined — the same January 2026 assessment (arXiv:2601.00273) that catalogued Raft's attack surface in Part 1 also frames the open problem: Raft assumes crashes, not adversaries, and Byzantine-tolerant variants (3f+1 nodes instead of 2f+1) are the price of surviving a lying node. Cross-domain Raft (CD-Raft, arXiv:2603.10555) reports 32.9% lower average latency and 49.2% lower tail latency across administrative domains. And the leaderless branch — EPaxos, and its successors — removes the leader entirely for workloads where one hot leader is the bottleneck, at the cost of complexity few teams want to own. Raft won the last decade by being the protocol engineers can hold in their heads; the challengers win only where the leader itself is the problem.</p>
+<h2>Why it breaks</h2>
+<p><strong>The minority partition that keeps writing is the failure consensus exists to prevent — and it still happens when consensus is bypassed.</strong> A 2-node side of a 5-node cluster can never reach quorum 3, so it cannot commit anything: that is the guarantee, and our notebook asserts it. But the guarantee only holds <em>inside</em> the protocol. GitHub's October 2018 outage was a failover automation promoting a MySQL replica without a quorum while the old primary still accepted writes — two primaries, both writing, hours of reconciliation. The lesson from Part 1 stands, one level up: an agreement that doesn't require a majority isn't an agreement, it's a coin flip with extra steps.</p>
+<p><strong>The stale leader is the quieter version.</strong> A partitioned leader doesn't know it lost. It keeps appending to its log, and when the partition heals, its uncommitted entries get overwritten by the new leader's log — which is correct, because they were never committed, but it is <em>silent</em> data loss for any client that was told its write succeeded before the commit actually happened. The fix is never to acknowledge a write before a majority stores it, and to fence stale leaders with term numbers (Part 1). etcd's revisions and ZooKeeper's <code>zxid</code> are fencing tokens wearing different clothes.</p>
+<p><strong>The slow disk is the version nobody designs for.</strong> Consensus assumes crashes are clean: a node is either up or down. A disk that takes 30 seconds to fsync is neither — the node is alive, voting, and dragging every commit to its own speed, because a commit waits for the slowest member of the fastest quorum. In production the signal is commit latency p99 climbing while the leader looks healthy, and the fix is boring: separate the Raft write-ahead log onto its own fast disk, alert on <code>etcd_disk_wal_fsync_duration_seconds</code>, and treat a slow follower as a failed follower — remove it from the cluster before it becomes the quorum's pace car.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>Consensus is agreement on one ordered log, enforced by majority quorum: any two majorities overlap, so a decided value can never be un-decided.</li>
+<li>Paxos (1989) proved it could be done; Raft (2014) made it implementable by giving the cluster one stable leader and a strict log.</li>
+<li>The availability arithmetic: at 1% per-node downtime, 3 nodes lose quorum 157 min/yr, 5 nodes 5.2 min, 7 nodes 11 sec — each extra pair buys ~30×.</li>
+<li>Commit costs one RTT to a majority: ~0.4 ms same-datacenter, ~66 ms cross-region. Geography, not quorum size, is the bill.</li>
+<li>Classic Paxos stalls when proposers duel (6 proposers: 5.62 rounds per commit in simulation); a stable leader commits in 1 round, always.</li>
+<li>Don't implement consensus. Use etcd, Consul, or a database that already did — and keep its write-ahead log on a fast disk.</li>
+</ul>
+<p><em>Next in Season 2: Part 3 — Distributed transactions &amp; 2PC: what happens when one write has to land in two places at once. Follow on dev.to for the next part.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/consensus_raft_paxos.ipynb">consensus_raft_paxos.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
