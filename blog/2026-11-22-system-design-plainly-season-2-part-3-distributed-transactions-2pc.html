@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design, Plainly — Season 2, Part 3: Distributed Transactions & 2PC | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>System Design, Plainly — Season 2, Part 3: Distributed Transactions & 2PC</h1>
+<div class="meta">2026-11-22 &middot; System design (distributed transactions & 2PC) — Season 2, Part 3</div>
+<article class="post">
+<p>Part 2 gave the cluster one log that everyone agrees on. This part asks what happens when one write has to land in <em>two</em> places at once — and both places have to say yes, or neither does.</p>
+<p>Move $100 from your checking account to your savings account. The debit lives on one shard, the credit on another. Commit the debit but not the credit and $100 vanishes. Commit the credit but not the debit and $100 appears from nowhere. A single-machine database solves this with a transaction: all or nothing, enforced by one log. Spread the data across machines and there is no single log anymore — so you need a protocol that makes several independent machines agree on one outcome. That protocol is <strong>two-phase commit (2PC)</strong>, and it is the oldest answer in distributed systems — and the one every modern database still runs internally, in disguise.</p>
+<p>The benchmark hook for this part is the availability arithmetic, and it runs in the opposite direction from Part 2. Consensus got <em>more</em> available as you added nodes. 2PC gets <em>less</em>: a transaction commits only if the coordinator and every participant are up. At 99.9% per-node uptime, one participant costs you <strong>8.8 hours a year</strong> when it can't commit; three participants cost <strong>26.3 hours</strong>; five cost <strong>43.7 hours</strong>. Every participant you add is another machine that can veto your transaction by being down. And the blocking problem is worse than the downtime: at 10,000 transactions a second, a coordinator with a one-year MTBF strands about <strong>20 transactions a year in doubt</strong> — each one holding its rows hostage until the coordinator recovers, in minutes, not milliseconds.</p>
+<h2>The ELI5 version</h2>
+<p>Two friends share a money jar, but each keeps their own notebook. You want to move $100 from Alice's notebook to Bob's. The rule is both notebooks change, or neither does — and the friends are in different rooms, shouting through a doorway, and either one might fall asleep mid-sentence.</p>
+<p>So they appoint a referee. The referee walks to Alice: "Can you subtract $100?" Alice writes the subtraction in pencil, locks her notebook shut, and says "yes, I can." The referee walks to Bob: "Can you add $100?" Bob writes it in pencil, locks his notebook, and says "yes." Only now — with both yeses in hand — does the referee shout "COMMIT," and both friends erase the pencil and write it in ink. If either one said no, the referee shouts "ABORT," and both erase the pencil.</p>
+<p>That is 2PC in one paragraph. The pencil is the <strong>prepare</strong> phase: each participant does everything needed to commit — writes the change durably to its own log, holds locks on the affected rows — without making it visible yet. The ink is the <strong>commit</strong> phase. And the rule that makes the whole thing work is the promise: once Alice says yes, she has given up the right to change her mind. She cannot abort on her own. She must wait for the referee's decision, however long that takes.</p>
+<p>Now the failure that defines the protocol: the referee collects both yeses, then falls asleep before shouting the decision. Alice and Bob are stuck. Alice cannot commit — Bob might have said no, or the referee might have decided to abort and told Bob. Alice cannot abort either — the referee might have decided to commit and told Bob. So both sit there, notebooks locked, waiting for a referee who may never wake up. That is the <strong>blocking problem</strong>, and it is why 2PC is called a blocking protocol.</p>
+<h2>How it works: two phases, one commit point</h2>
+<p>The protocol, exactly:</p>
+<p><strong>Phase 1 — Prepare (voting).</strong> The coordinator assigns a globally unique transaction ID and sends <code>PREPARE</code> to every participant. Each participant checks it can commit — constraints hold, no conflicts, resources available — and if so, writes everything needed to commit later to durable storage, keeps holding its locks, and votes <strong>YES</strong>. A participant that cannot commit votes <strong>NO</strong> and aborts locally. The moment a participant votes YES, it has made an irrevocable promise: it cannot unilaterally abort, and it must hold its locks until the coordinator decides.</p>
+<p><strong>Phase 2 — Commit or abort (decision).</strong> If every vote is YES, the coordinator writes a <code>COMMIT</code> record to its own durable log — this write is the <strong>commit point</strong>, the single moment that determines the transaction's fate — and sends <code>COMMIT</code> to every participant, which makes the change visible and releases the locks. If any vote is NO, or a participant times out, the coordinator writes <code>ABORT</code> and tells everyone to roll back. After the commit point, the transaction <em>will</em> commit regardless of subsequent failures: the coordinator retries the decision indefinitely until every participant acknowledges.</p>
+<p><img alt="Two-phase commit: the happy path, and the crash in the middle. The vulnerable window — between the last YES vote and the decision log write — is ~2 ms, and a coordinator crash inside it leaves every participant in doubt, holding its locks until the coordinator recovers. Schematic; the window arithmetic is simulated in the companion notebook." src="assets/twopc_timeline.png" /></p>
+<p>The commit point is the most important concept in the protocol, and the reason 2PC is a <em>protocol</em> rather than a hope. Before it, the outcome can still be abort. After it, the outcome is commit, and the only remaining work is delivery — retrying the decision until every participant has heard it. The coordinator's log, not the participants' agreement, is the source of truth.</p>
+<p>This is not a textbook curiosity. PostgreSQL exposes the participant side directly: <code>PREPARE TRANSACTION</code> writes a prepared transaction that survives disconnection and even a server restart, and <code>COMMIT PREPARED</code> / <code>ROLLBACK PREPARED</code> finish it — but the feature is disabled by default (<code>max_prepared_transactions</code> is 0, and raising it requires a server restart), which tells you how often people actually want it. XA — the standard API for 2PC across heterogeneous resources — does the same for MySQL, Oracle, and message queues. And inside distributed databases, 2PC never went away: it just got better participants.</p>
+<h2>The availability arithmetic: every participant is a veto</h2>
+<p>Part 2's quorum math rewarded adding nodes. 2PC punishes it. A transaction needs <em>all</em> of its participants up — not a majority, all of them — so the commit probability is the product of the uptimes, and the downtime is the complement:</p>
+<p><img alt="Minutes per year a 2PC transaction cannot commit, by participant count: at 99.9% per-node uptime, 1 participant costs 8.8 h/yr, 3 cost 26.3 h/yr, 5 cost 43.7 h/yr. At 99.99% the same shape holds at one-tenth the scale. Exact 0.999^n arithmetic in the companion notebook." src="assets/twopc_availability.png" /></p>
+<p>The numbers are exact, not vibes: at 99.9% per node, 0.999³ = 99.70% all-up, which is 26.3 hours a year when the transaction cannot even start; 0.999⁵ = 99.50%, or 43.7 hours. Two participants at 99.9% cost 17.5 hours; one costs 8.8. At 99.99% per node the shape is identical at one-tenth the scale — 3 participants still cost 2.6 hours a year. This is why the first rule of distributed transactions is to keep related data together: a transaction that touches one shard doesn't need 2PC at all, and every shard you add is another machine that can say no by being down. It is also why 2PC is inherently CP-leaning, for the same structural reason as consensus — during a coordinator failure or a partition, the system doesn't gracefully degrade, it blocks.</p>
+<p>And the blocking is not a rare edge case. The coordinator is vulnerable for only ~2 ms per transaction — the gap between the last YES vote and the decision log write — but at 10,000 transactions a second, that sliver adds up. With a coordinator MTBF of one year, expect about <strong>20 transactions a year stranded in doubt</strong>; widen the window to 5 ms and it's 50; to 20 ms and it's 200. Our Monte Carlo over 10,000 simulated years lands at 19.96 a year, with a p99 year of 81. Each stranded transaction holds its rows locked for the full coordinator recovery — minutes, not milliseconds — and every other transaction touching those rows waits behind it. The probability is small. The blast radius is not.</p>
+<h2>The hot-row ceiling: throughput = 1 / lock-hold</h2>
+<p>The second cost is subtler and hits before any crash: locks are held across the whole network round trip. A 2PC transaction holds its locks from the first write until the decision lands, so the maximum update rate on a single hot row is exactly one over the lock-hold time — no matter how many machines you own:</p>
+<p><img alt="Max updates per second on one hot row vs lock-hold time: same-datacenter 2PC (3 ms hold) caps at 333/s, a 20 ms hold at 50/s, cross-region 2PC (162 ms hold) at 6.2/s. The ceiling is 1 / hold, exact arithmetic in the companion notebook." src="assets/twopc_hotrow.png" /></p>
+<p>Same-datacenter, a 2PC commit holds locks ~3 ms, so one hot row tops out at <strong>333 updates a second</strong>. Cross-region, the same commit holds locks ~162 ms, and the ceiling collapses to <strong>6.2 updates a second</strong>. A 20 ms hold gives 50 updates a second — the figure the textbooks quote, and the reason a 2PC transaction touching a popular row (a seat map, a balance, an inventory count) serializes your entire system through one row's lock. And queueing makes it worse than the ceiling suggests: at 90% of the ceiling, mean wait is 10× the hold itself (M/M/1: wait = h / (1 − ρ)), so a row running at 45 updates a second on a 20 ms hold doesn't feel like 20 ms of latency — it feels like 200 ms, for every writer, in a line that only grows.</p>
+<h2>The commit-latency ladder: who pays how many round trips</h2>
+<p>Classic 2PC pays two network round trips plus two forced log writes per commit — the participant's prepare vote, and the coordinator's decision. The modern systems didn't abolish that bill; they refinanced it:</p>
+<p><img alt="Commit latency by deployment shape: classic 2PC pays 2 RTT + 2 log writes (3 ms same-DC, 162 ms cross-region); CockroachDB's parallel commits pay 1 RTT + 1 write (81 ms cross-region); Spanner pays 2 RTT + a 7 ms TrueTime commit wait (167 ms cross-region). Model in the companion notebook." src="assets/twopc_commit_latency.png" /></p>
+<ul>
+<li><strong>Spanner</strong> runs 2PC across Paxos groups. Each participant — and the coordinator itself — is a replicated consensus group, so no single machine failure blocks a transaction, and the commit decision lives in a replicated log instead of one coordinator's disk. The price is the cross-group round trips plus the <strong>commit wait</strong>: Spanner's TrueTime API returns a time interval, not a point (atomic clocks and GPS receivers in every datacenter keep the uncertainty ε ≤ 7 ms), and a transaction waits until TrueTime guarantees its commit timestamp is in the past on every clock. That wait buys external consistency — if T1 commits before T2 starts, T2 gets a later timestamp — and it costs ε on every read-write transaction.</li>
+<li><strong>CockroachDB</strong> uses <strong>parallel commits</strong>: instead of writing intents, waiting, then writing a COMMITTED transaction record, the coordinator writes the record in a STAGING state — listing the in-flight writes — <em>in parallel with</em> the writes themselves. The transaction is committed as soon as every listed write and the staging record exist, so the client waits for one round of consensus instead of two. The record flips to COMMITTED in the background, and a reader that meets a STAGING record checks whether all listed writes succeeded and can decide the outcome itself. Cross-region, that halves commit latency from ~162 ms to ~81 ms.</li>
+<li><strong>Percolator</strong> (Google's Bigtable indexer, and the model TiDB follows) lets the <em>client</em> drive 2PC through locks stored in the data itself. There is no separate coordinator to crash: the primary lock carries the transaction's fate, and any client that finds a stuck lock can resolve it by reading the primary. The blocking problem becomes a cleanup problem.</li>
+</ul>
+<p>The pattern across all three: the fix for 2PC's weaknesses is never a better coordinator — it's making the coordinator <em>unnecessary</em> by storing the decision where consensus already lives. 3PC tried the other route — a third phase so participants can decide without the coordinator — but it relies on timing assumptions real networks violate, and it is rarely used in production.</p>
+<h2>2PC vs Saga: the honest trade</h2>
+<p>Across independent services, the alternative is the saga: a sequence of already-committed local transactions, each with a compensating action that undoes it. The saga never blocks — a failed step is undone and locks were already released — but it gives up atomicity and isolation in exchange. The failure accounting makes the trade concrete:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Two-phase commit</th>
+<th>Saga</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Guarantee</td>
+<td>Atomic: all commit or all abort, no visible in-between</td>
+<td>Eventually consistent: intermediate states are visible</td>
+</tr>
+<tr>
+<td>Failure mode</td>
+<td><strong>Blocking</strong>: coordinator crash strands participants in doubt, locks held</td>
+<td><strong>Unresolved</strong>: a compensation that fails needs a human</td>
+</tr>
+<tr>
+<td>How often it bites</td>
+<td>~20 in-doubt txns/yr at 10k txn/s (2 ms window, 1-yr MTBF)</td>
+<td>4.9% of 5-step sagas need a compensation (1% per-step failure); ~1 in 2,040 needs a human</td>
+</tr>
+<tr>
+<td>Abort rate from ordinary downtime</td>
+<td>0.30% of txns abort when one of 3 participants is down at 99.9%</td>
+<td>No aborts — steps commit as they go</td>
+</tr>
+<tr>
+<td>Latency cost</td>
+<td>2 RTT + 2 log writes per commit (162 ms cross-region)</td>
+<td>One local commit per step, no cross-service lock hold</td>
+</tr>
+<tr>
+<td>When to use it</td>
+<td>You control all the databases and need strict atomicity</td>
+<td>Independent services, low volume per saga, compensations you can write</td>
+</tr>
+</tbody>
+</table>
+<p>The saga's 4.9% compensation rate is the number people underestimate: with five steps each failing 1% of the time, roughly one saga in twenty runs a compensation — and if compensations fail 1% of the time too, about one saga in 2,040 ends unresolved, sitting in a queue for a human. 2PC fails loudly and rarely (0.30% aborts from a participant simply being down); a saga fails quietly and often, and the cost is the compensation code you have to write, test, and maintain for every step — including the steps whose undo is "email the customer and apologize," which no protocol can automate.</p>
+<p>The decision ladder, in practice: if the data can live in one database, keep it there. If it's one logical database spread over nodes, use a distributed SQL database and let it run the commit protocol. If it's two different systems run by one team at low volume, XA/2PC is fine. If it's independent services, use a saga — or the outbox pattern, which is a saga with the message publish folded into the local transaction — and accept eventual consistency. Each rung down buys independence and costs guarantees your code must then provide.</p>
+<h2>Why it breaks</h2>
+<p><strong>The in-doubt transaction is the failure 2PC exists to create.</strong> A coordinator crash after the YES votes is not a rare disaster — at 10k txn/s it's ~20 times a year — and each one leaves rows locked until an operator or a recovery process determines the outcome. PostgreSQL makes this visible: a prepared transaction that nobody commits sits in <code>pg_prepared_xacts</code> holding its locks, and the only fixes are <code>COMMIT PREPARED</code>, <code>ROLLBACK PREPARED</code>, or a DBA deciding which. The operational rule is to monitor in-doubt transactions like you monitor disk space: alert on any prepared transaction older than a minute, because every minute it lives is a minute of blocked writers.</p>
+<p><strong>The slow participant is the version nobody designs for.</strong> 2PC waits for <em>every</em> participant, so the slowest one sets the lock-hold for all of them — and a participant that takes 30 seconds to fsync its prepare vote holds every other participant's locks for 30 seconds too. The signal is commit latency p99 climbing while the coordinator looks healthy, and the fix is the same boring one as Part 2: fast disks for the prepare log, and a timeout that aborts rather than waiting forever. A participant that cannot answer in time should vote NO, not hang.</p>
+<p><strong>The coordinator is a single point of failure wearing a protocol's clothes.</strong> Everything in 2PC funnels through one machine's log: its crash is the blocking event, its recovery is the unblock. The modern answer is not a better coordinator but no coordinator — Spanner replicates the decision across Paxos groups, CockroachDB stores it as data any node can read, Percolator lets any client resolve it. If your 2PC coordinator is a single unreplicated process, you don't have a distributed transaction system; you have a distributed system with one machine that can freeze all of it.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>2PC is the atomic-commit protocol: prepare (vote YES, write durably, hold locks, give up the right to abort), then commit or abort at the coordinator's decision — the commit point is the single moment that fixes the outcome.</li>
+<li>Availability multiplies against you: at 99.9% per node, 3 participants cost 26.3 h/yr of commit-ability, 5 cost 43.7 h/yr. Every participant is a veto.</li>
+<li>The blocking problem is quantifiable: ~20 transactions a year stranded in doubt at 10k txn/s with a 2 ms vulnerable window and a 1-year coordinator MTBF — each holding its rows for the full recovery time.</li>
+<li>The hot-row ceiling is 1 / lock-hold: 333 updates/s same-datacenter, 6.2/s cross-region — and 90% of the ceiling costs 10× the hold in queueing.</li>
+<li>Commit costs 2 RTT + 2 log writes (162 ms cross-region); CockroachDB's parallel commits halve it to 81 ms; Spanner pays the same 2 RTTs plus a ≤7 ms TrueTime commit wait.</li>
+<li>Sagas never block but fail quietly: 4.9% of 5-step sagas need a compensation, ~1 in 2,040 needs a human. 2PC fails loudly (0.30% aborts) and rarely.</li>
+<li>Don't build 2PC across services. Use a distributed SQL database that already did — or a saga, if you can write the compensations.</li>
+</ul>
+<p><em>Next in Season 2: Part 4 — Sagas &amp; the outbox pattern: the transactions that never block, and what they cost instead. Follow on dev.to for the next part.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/distributed_transactions_2pc.ipynb">distributed_transactions_2pc.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
