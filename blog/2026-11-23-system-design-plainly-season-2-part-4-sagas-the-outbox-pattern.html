@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design, Plainly — Season 2, Part 4: Sagas & the Outbox Pattern | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>System Design, Plainly — Season 2, Part 4: Sagas & the Outbox Pattern</h1>
+<div class="meta">2026-11-23 &middot; System design (sagas & outbox) — Season 2, Part 4</div>
+<article class="post">
+<p>Part 3 gave you the protocol that makes several machines agree on one outcome — and showed why it blocks. This part is the escape hatch: give up the single agreement, commit step by step, and keep an undo action ready for every step. That is the <strong>saga</strong>, and the <strong>transactional outbox</strong> is the small, boring mechanism that makes sagas actually work in production.</p>
+<p>Book a trip. One service reserves the seat, a second takes the payment, a third books the room, a fourth sends the confirmation email. The room booking fails after the payment has landed. The customer has now paid for a trip that does not exist. There is no single database transaction spanning four services, so there is no rollback. What you do instead is run the steps in reverse: refund the payment, release the seat, cancel the booking — each undo a <strong>compensating transaction</strong>, written in advance, one per step.</p>
+<p>The benchmark hook for this part is the compensation economics, and it runs in the opposite direction from the intuition that "failure handling is an edge case." With five steps each failing 1% of the time, <strong>4.9% of sagas run a compensation — roughly one saga in twenty</strong>. At one million multi-step jobs a day with ten steps each and a 1-in-1,000 step failure rate, that is <strong>~10,000 sagas a day needing their undo path</strong>. And the second-order failure is the one that actually hurts: if a compensation itself fails 1% of the time, <strong>~1 saga in 1,040 ends unresolved — sitting in a queue for a human</strong>, about 960 a day at that volume. (Part 3 quoted ~1 in 2,040; that assumed a 0.5% compensation-failure rate. The unresolved rate is exquisitely sensitive to that one number, which is exactly the point: your saga is only as reliable as its worst compensation.)</p>
+<h2>The ELI5 version</h2>
+<p>You are assembling flat-pack furniture with a friend, but you live in different houses and can only text. You agree on an order: you build the frame, your friend attaches the legs, you add the shelves, your friend tightens everything.</p>
+<p>Halfway through, your friend texts: "the legs don't fit." In a single-database world you would both rewind time and pretend nothing happened. In the real world, the frame is already built — you cannot un-build it by wishing. So each of you agreed, <em>before starting</em>, on the undo for your own step: your friend unscrews the legs, you disassemble the frame, and you both end up back where you started, one undo at a time, in reverse order.</p>
+<p>That is a saga. Three rules make it work: every step commits immediately (no locks held across services); every step has a named compensation written <em>before</em> the saga starts, not improvised after a failure; and every compensation is <strong>idempotent</strong> — running it twice has the same effect as running it once — because the network will redeliver, the orchestrator will restart, and your refund will be attempted twice.</p>
+<h2>How it works: local steps, durable progress, reverse-order undo</h2>
+<p>A saga is a sequence of <strong>local transactions</strong>, each atomic inside one service's own database. After each step commits, the saga records its progress in a durable log — the <strong>saga log</strong> — and triggers the next step. If a step fails, the saga walks backward, running each completed step's compensation in reverse order. The saga never blocks: a failed step is undone, locks were already released when each local transaction committed, and no participant waits on any other participant's recovery.</p>
+<p>There are two ways to drive it:</p>
+<ul>
+<li><strong>Orchestration.</strong> A central coordinator — a saga orchestrator, or a workflow engine like Temporal or Cadence — tells each service what to do, in order, and watches the replies. Easier to understand, monitor, and debug: when a saga fails at step 7 of 12, the operations team can see the whole state machine in one place. The coordinator is itself a stateful service, so it must persist its progress durably (a crash mid-saga is recovered by replaying the log, not by asking the services what happened).</li>
+<li><strong>Choreography.</strong> No coordinator: each service listens for events and decides what to do next. The order service emits <code>OrderCreated</code>; inventory hears it and reserves stock; payment hears <code>InventoryReserved</code> and charges the card. Loosely coupled, no single coordination point — and much harder to debug, because the state machine exists only as the sum of every service's event handlers. A stuck choreography has no single place to look.</li>
+</ul>
+<p>The choice is usually decided by one question: when a saga fails at 3 a.m., who gets paged, and can they see what happened? Production teams that have run both tend to pick orchestration for that reason. One practitioner report — 12 microservices, 8,000 distributed transactions a second — is blunt about the history: they abandoned 2PC after it caused three outages in two months, moved to orchestration-based sagas, and now run at <strong>99.7% saga completion, a 0.3% compensation rate, 1.2 s average duration, 4.8 s p99, and a 0.002% failed-compensation rate</strong>. Those are real fleet numbers, not a benchmark — and note what they imply: at 8,200 sagas a second, a 0.3% compensation rate is still ~25 compensations a second, every second, all day. Compensation is a hot path, not an exception handler.</p>
+<p><img alt="Probability that a saga needs compensation, by per-step failure rate and step count: at 1% per-step failure, 3 steps need compensation 3.0% of the time, 5 steps 4.9%, 10 steps 9.6%. Exact 1-(1-p)^n arithmetic in the companion notebook." src="assets/saga_compensation_math.png" /></p>
+<p>The curve is the argument for writing compensations first and testing them like forward steps. Every step you add is another chance to pay the undo tax: at 1% per-step failure, a 10-step saga compensates almost twice as often as a 5-step one (9.6% vs 4.9%). The practical consequences follow directly: keep sagas short, make the expensive steps late (so fewer steps need undoing when they fail), and put the step with no good compensation — "email the customer and apologize" — as far from the start as you can, because its undo is a human.</p>
+<h2>The second-order failure: when the undo fails</h2>
+<p>A saga's failure mode is not the failed step. It is the failed compensation. A step that fails cleanly is routine; a compensation that fails leaves the system in a state no protocol can resolve, and the saga lands in a dead-letter queue for a human.</p>
+<p><img alt="Probability a saga ends unresolved (needs a human) vs per-compensation failure rate, for a 5-step saga at 1% per-step failure: at 1% compensation failure, 0.096% of sagas — about 1 in 1,040 — end unresolved. The field figure from a 12-service production fleet is 0.002% failed compensation. Analytic sum in the companion notebook." src="assets/saga_unresolved.png" /></p>
+<p>Two things matter here. First, the unresolved rate is dominated by the <em>late</em> steps: a failure at step 5 undoes four steps, so it has four chances for a compensation to fail, while a failure at step 2 has only one. Second, the compensation-failure rate is the only number in the whole design that you fully control — and the cheapest way to move it is idempotency plus retry. A compensation that fails because the service was briefly down is not a human problem; it is a retry problem. Retry it with backoff, forever, and the only compensations that reach a human are the ones that fail <em>deterministically</em>: the refund API rejecting the charge, the inventory record already deleted, the seat already resold. That is why the field figure (0.002%) is two orders of magnitude below the toy 1% assumption: in production, most compensation failures are transient, and retries absorb them.</p>
+<p>The non-obvious corollary: <strong>a compensation must be written for the world as it is when it runs, not as it was when the step ran.</strong> "Void the authorization" is correct on the day of the purchase and wrong the next day, when the card network requires a refund instead. "Increment the inventory count" is wrong if another reservation took the same units in the meantime — the compensation must release <em>that specific reservation</em>. These are semantic compensations, and they are where most saga bugs live: not in the happy path, and not in the retry logic, but in an undo that no longer matches the state it is undoing.</p>
+<h2>The outbox pattern: the dual-write problem, solved by deleting a write</h2>
+<p>Sagas have a second, quieter failure hiding inside every step: the step itself usually needs to do two things at once — update its own database <em>and</em> tell the next service. Write the row, then publish the event, and a crash between the two loses the event: the order exists but nobody ever hears about it. Publish first, then write, and a crash leaves a ghost event for an order that never existed. Two independent writes with no shared transaction cannot both be guaranteed, and the gap between them is a loss window you can measure:</p>
+<p><img alt="Lost or ghost events per day from the dual-write gap, at 10,000 requests a second with one crash per 30 days per service: a 5 ms gap loses ~1.7 events a day, a 100 ms gap ~33, a 1 s gap ~333. The outbox pattern has zero, by construction. Model in the companion notebook." src="assets/saga_dualwrite.png" /></p>
+<p>The fix is to stop having two writes. The <strong>transactional outbox pattern</strong>, catalogued by Chris Richardson, folds the event into the step's own local transaction: the service inserts the business row <em>and</em> an <code>outbox</code> row in the same database transaction, and a separate relay publishes the outbox rows to the broker afterward. Either both rows exist or neither does — the database you already trust becomes the single source of truth, and everything after the commit is a retry loop.</p>
+<p>The guarantee that buys is <strong>at-least-once delivery, not exactly-once</strong>. The relay can publish an event, crash before recording its progress, and publish the same event again after restarting. There is no version of this pattern that delivers exactly once — KIP-939, which would let Kafka participate in two-phase commit, is still under development as of October 2026 — so the consumer side must do the second half of the job: deduplicate on the event ID (generated in application code, so it survives relay restarts) and make every handler idempotent. The outbox plus an idempotent consumer is the whole pattern; either half alone is a bug.</p>
+<h2>The relay: polling is simple, CDC is fast, both cost something</h2>
+<p>Getting rows out of the outbox table has two standard implementations, and the choice is a latency-versus-operations trade:</p>
+<p><img alt="Event visibility delay by relay type: a polling publisher's mean delay is half its interval (0.25 s at 500 ms polling, 2.5 s at 5 s); Debezium CDC tailing the WAL lands at ~0.3 s mean with no polling load. Model in the companion notebook." src="assets/saga_relay_latency.png" /></p>
+<ul>
+<li><strong>Polling publisher.</strong> A process queries <code>SELECT ... WHERE published = false</code>, publishes, then marks the rows published — all inside one transaction, so a crash between publish and mark just republishes on the next poll. Simple, entirely application code, no extra infrastructure. The cost is latency (mean delay is half the poll interval) and database load: below roughly 200 events a second it is the right default; above that, the polling queries and the <code>UPDATE</code>s start competing with the business workload.</li>
+<li><strong>Transaction-log tailing (CDC).</strong> Debezium reads the database's own write-ahead log — the WAL in PostgreSQL, the binlog in MySQL — and publishes inserts in commit order, with no polling queries at all. Latency is usually under a second, and ordering comes free. The cost is operational: Debezium reads through a replication slot, and PostgreSQL retains every WAL segment the slot has not confirmed as read. If the connector dies for a few days and nobody notices, the WAL piles up until the primary's disk is full. Monitor the slot lag (<code>pg_replication_slots</code>) and set <code>max_slot_wal_keep_size</code> — the failure mode of CDC is not lost events, it is a full disk.</li>
+</ul>
+<p>Either way, the outbox table needs housekeeping: published rows must be deleted or archived, or the table grows without bound. Debezium's Outbox Event Router treats the table as insert-only and filters out deletes automatically; a polling relay has to do its own cleanup.</p>
+<h2>Saga vs 2PC: the honest trade</h2>
+<p>Part 3 ended with the comparison table. Here is the same trade with the outbox folded in, because the outbox is what makes the saga column livable:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Two-phase commit</th>
+<th>Saga + outbox</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Guarantee</td>
+<td>Atomic: all commit or all abort, no visible in-between</td>
+<td>Eventually consistent: intermediate states are visible to readers</td>
+</tr>
+<tr>
+<td>Failure mode</td>
+<td><strong>Blocking</strong>: coordinator crash strands participants in doubt, locks held</td>
+<td><strong>Unresolved</strong>: a compensation that fails needs a human (~1 in 1,040 at 1% comp failure)</td>
+</tr>
+<tr>
+<td>How often it bites</td>
+<td>~20 in-doubt txns/yr at 10k txn/s (2 ms window, 1-yr MTBF)</td>
+<td>~1 saga in 20 compensates (5 steps, 1% step failure); ~25 compensations/s at 8,200 tx/s in the field</td>
+</tr>
+<tr>
+<td>Cross-service event loss</td>
+<td>N/A — the protocol is the delivery</td>
+<td>Dual-write loses ~1.7 events/day per 5 ms gap at 10k req/s; outbox makes it zero</td>
+</tr>
+<tr>
+<td>Latency cost</td>
+<td>2 RTT + 2 log writes per commit (162 ms cross-region)</td>
+<td>One local commit per step; event visible after relay (0.25–2.5 s polling, ~0.3 s CDC)</td>
+</tr>
+<tr>
+<td>When to use it</td>
+<td>You control all the databases and need strict atomicity</td>
+<td>Independent services, compensations you can write, readers that tolerate in-between states</td>
+</tr>
+</tbody>
+</table>
+<p>The decision ladder from Part 3 still holds, with one rung added: if the data can live in one database, keep it there. If it is one logical database spread over nodes, use a distributed SQL database and let it run the commit protocol. If it is two different systems run by one team at low volume, XA/2PC is fine. If it is independent services, use a saga — and the moment a step has to notify another service, write the event into the outbox in the same transaction, or the saga's first failure will be a lost event nobody can explain.</p>
+<h2>Why it breaks</h2>
+<p><strong>The missing compensation is the failure that ships.</strong> Every step has a forward action that gets written, tested, and demoed. The compensation gets written last, tested never, and discovered missing the first time the step fails in production — which, at 4.9% of sagas, is the first week. The operational rule is to test compensations the way you test forward steps: run the saga, kill a step on purpose, and assert the system returns to the state it started in. Chaos testing for sagas is not a nice-to-have; it is the only way the undo path ever gets exercised before a customer does it for you.</p>
+<p><strong>The non-idempotent compensation is the failure that double-charges.</strong> At-least-once delivery means every compensation will eventually run twice. A refund that is not idempotent refunds twice; an inventory release that is not idempotent releases stock that was never reserved. The signal is a reconciliation report that never quite balances, and the fix is to key every compensation on the same event ID the forward step used, so the second run is a no-op. Idempotency is not a property of the saga framework. It is a property of each compensation, written by hand, one at a time.</p>
+<p><strong>The unreadable in-between state is the failure your readers hit.</strong> A saga's intermediate states are visible: the payment is taken, the room is not yet booked, and a reader querying in that window sees a trip that is half-built. If your UI, your reports, or your downstream services assume a saga is either done or not started, they will show a customer a charge with no booking — and the customer will call support before the compensation runs. The fix is to design the read path for in-between states: mark the order <code>PENDING</code>, hide it from the customer-facing list until the saga completes, and treat "saga in progress" as a first-class status, not an error.</p>
+<p><strong>The unmonitored outbox is the failure that fills a disk.</strong> CDC's replication slot and the polling relay's backlog are both silent until they are not: slot lag grows, the outbox table grows, and the first symptom is either a full disk or events arriving hours late. Alert on outbox age — any row older than a minute is a stuck relay — and on slot lag, the same way Part 3 said to alert on in-doubt transactions. The outbox is infrastructure now; monitor it like infrastructure.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>A saga is a sequence of already-committed local transactions, each with a compensating action written in advance; a failed step is undone in reverse order, and nothing ever blocks.</li>
+<li>Compensation is a hot path, not an edge case: 4.9% of 5-step sagas compensate at 1% per-step failure; at 1M jobs a day, ~10,000 sagas a day run their undo path.</li>
+<li>The second-order failure is the one that needs a human: ~1 saga in 1,040 ends unresolved at a 1% compensation-failure rate — and that rate is the only number in the design you fully control, via idempotency and infinite retry of transient failures.</li>
+<li>Field numbers from a 12-service fleet at 8,000 tx/s: 99.7% completion, 0.3% compensation rate, 1.2 s average, 4.8 s p99, 0.002% failed compensation — after 2PC caused three outages in two months.</li>
+<li>The dual-write problem is a measured loss window: a 5 ms gap between commit and publish loses ~1.7 events a day at 10k req/s. The outbox deletes the second write — event and business row commit atomically — and delivers at-least-once.</li>
+<li>At-least-once means duplicates: consumers deduplicate on the application-generated event ID, and every handler must be idempotent.</li>
+<li>Relay choice is latency versus operations: polling is simple below ~200 events/s (mean delay half the interval); Debezium CDC lands in ~0.3 s but a dead replication slot can fill the primary's disk — monitor slot lag and outbox age.</li>
+<li>Orchestration beats choreography when a saga fails at 3 a.m. — because someone has to see the whole state machine in one place.</li>
+</ul>
+<p><em>Next in Season 2: Part 5 — Backpressure &amp; load shedding: what happens when the system says no on purpose. Follow on dev.to for the next part.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/saga_outbox.ipynb">saga_outbox.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
