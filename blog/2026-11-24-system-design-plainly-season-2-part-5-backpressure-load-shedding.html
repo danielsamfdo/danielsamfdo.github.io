@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design, Plainly — Season 2, Part 5: Backpressure & Load Shedding | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>System Design, Plainly — Season 2, Part 5: Backpressure & Load Shedding</h1>
+<div class="meta">2026-11-24 &middot; System design (backpressure & load shedding) — Season 2, Part 5</div>
+<article class="post">
+<p>Part 4 gave you the escape hatch for a failed multi-step transaction: undo it, step by step. This part is the escape hatch for a system that is simply getting more work than it can do — and the benchmark hook is a cliff, not a slope. Take one server that handles each request in 10 ms. At 50% busy, the average request spends 20 ms in the system. At 80% busy, 50 ms. At 90%, 100 ms. At 99%, <strong>1,000 ms</strong> — a hundred times the service time, for a server that is only 9% busier than the one before it. That is the utilization cliff, and every system you have ever watched melt down under load was standing on it. The fix is not a bigger queue. The fix is deciding, in advance, what happens when the work does not fit — and there are only three answers: make the producer slow down, refuse the excess fast, or let the queue eat you alive.</p>
+<h2>The ELI5 version</h2>
+<p>You run a food truck. One cook, one order every 10 seconds, a line out the door. When ten people are in line, the tenth waits 100 seconds — annoying, but fine. When the line grows to a hundred, the hundredth waits 1,000 seconds, and by the time their food is ready they have left, or their lunch break is over, or they have ordered from the truck across the street and now you are cooking a meal nobody wants.</p>
+<p>You have three options. Put a sign on the truck — "line closes at 20 people, come back in ten minutes" — that is <strong>load shedding</strong>: refuse fast, refuse clearly, and let the refused customers decide what to do. Or slow the people joining the line — a host who only lets someone in when the cook has a free hand — that is <strong>backpressure</strong>: the slowdown signal travels upstream to the producer. Or keep taking orders forever, which is what an unbounded queue does, and which ends with a hundred cold meals and a cook who spent the whole afternoon serving people who already left.</p>
+<p>The sign and the host cost almost nothing. The hundred cold meals cost everything.</p>
+<h2>How it works: the utilization cliff</h2>
+<p>Two results from queueing theory carry most conversations about overload. The first is the M/M/1 queue: one server, random (Poisson) arrivals, service time <code>S</code>. Utilization <code>ρ</code> is the fraction of time the server is busy. The average time a request spends in the system — waiting plus service — is:</p>
+<pre><code>time in system = S / (1 - ρ)
+</code></pre>
+<p><img alt="Mean time in system vs utilization for a 10 ms service time: 50% busy 20 ms, 80% 50 ms, 90% 100 ms, 99% 1,000 ms. The curve is flat until 80% and then vertical — that is the cliff. p99 is about 4.6x the mean. Computed in the companion notebook." src="assets/bp_utilization_cliff.png" /></p>
+<p>The shape is the whole lesson. Below 80% utilization, the system feels fast and the queue is invisible. Above 90%, every additional point of utilization buys a disproportionate amount of waiting, and the p99 — about 4.6x the mean for an exponential distribution — is where your users actually live. A server at 99% busy with a 10 ms service time has a p99 of <strong>4.6 seconds</strong>. Nobody's SLO survives that, and the server is not broken: it is doing exactly what you asked, at exactly the rate you asked.</p>
+<p>The second result is Little's law, and it is the one that turns a latency problem into a capacity problem:</p>
+<pre><code>items in the system (L) = arrival rate (λ) × time each spends there (W)
+</code></pre>
+<p><img alt="Requests in flight at 2,000 requests a second as per-request time grows: 50 ms 100 in flight, 100 ms 200, 250 ms 500, 500 ms 1,000, 1,000 ms 2,000. A 20x slower dependency is 20x the threads, connections, and memory — nothing has to crash. Computed in the companion notebook." src="assets/bp_littles_law.png" /></p>
+<p>At 2,000 requests a second and 50 ms each, 100 requests are in flight. Say a dependency slows to 1 second, at the same arrival rate. Now 2,000 are in flight: twenty times the threads, connections, and memory. The dependency did not fail. It got slower, and Little's law converted that slowness into a capacity demand your thread pools were never sized for. This is how a slow database takes down a web tier that never touches the database's failure mode: the requests pile up in the tier, the tier runs out of threads, and every endpoint on the tier dies — including the ones that never called the slow dependency. The fix for that specific failure is a bulkhead (Part 10 will come back to isolation), but the underlying math is here.</p>
+<p>Past 100% utilization neither formula applies, because there is no steady state: the queue grows by arrival rate minus service rate, forever. That is the regime where the next two sections live.</p>
+<h2>The queue only buys time, never capacity</h2>
+<p>The first fix is the one most systems lack: a bound. An unbounded queue in front of a slower worker grows without limit, so latency and memory grow without limit too, and the worker spends its time serving requests whose callers have already given up. Every request is accepted, almost none succeed in time. The simulation in the companion notebook makes it concrete: offer 2,000 requests a second to a worker that handles 1,000, with a 2-second client deadline, for 60 seconds.</p>
+<p><img alt="Requests waiting during a 60-second 2x overload: the unbounded queue grows 1,000 requests a second to 60,000 waiting; the bounded queue (cap 200) stays flat. Simulation in the companion notebook." src="assets/bp_bounded_vs_unbounded.png" /></p>
+<p>The unbounded queue serves <strong>2,050 requests in time</strong> out of 120,000 offered — and serves another 57,950 too late to matter, each one costing the full price of work for zero value. The bounded queue, capped at 200, serves <strong>60,000 in time</strong> and sheds 59,800 instantly. The bounded queue serves nearly thirty times the goodput, because it spends its capacity on work someone still wants instead of work whose deadline expired a minute ago.</p>
+<p>The distinction that matters here is <strong>throughput vs goodput</strong>. Throughput counts completions; goodput counts completions inside the caller's deadline. Under overload, throughput can look fine — the worker is busy, the queue is draining — while goodput collapses to near zero, because everything completes after the client has timed out, retried, and moved on. Measure goodput. Alert on goodput.</p>
+<p>Size the bound from the latency budget, not from memory or a round number. If a request may wait at most <code>W</code> seconds before its total latency breaks the SLO, and the stage drains at rate <code>μ</code>, the queue can hold about <code>μ × W</code> items — Little's law applied to the waiting line. A queue of 200 in front of a worker that drains 1,000 a second means at most 200 ms of waiting. Anything beyond that cap is work that will finish too late to be useful, and refusing it is a kindness: a fast, explicit rejection costs almost nothing, while accepting it and answering late costs everyone.</p>
+<p>Watch for hidden unbounded queues, because they are everywhere: socket backlogs, thread-pool queues, <code>asyncio.Queue</code> with no <code>maxsize</code>, broker prefetch with no limit, a retry loop with no cap. The queue you did not bound is the one that kills you.</p>
+<h2>Backpressure: push "slow down" upstream</h2>
+<p>Backpressure is the general idea of pushing the slowdown signal upstream instead of buffering. TCP and HTTP/2 flow control do it at the transport level; a broker consumer that pulls messages only when it has capacity does it at the application level; a bounded queue that rejects when full does it bluntly. The opposite — a component that accepts everything and buffers it — hides overload from the producers who could do something about it.</p>
+<p>The mechanisms, from cheapest to most involved:</p>
+<ul>
+<li><strong>Bounded queue with rejection.</strong> The blunt instrument, and the right default. When the queue is full, the producer gets an immediate error instead of a silent buffer. Works everywhere, costs nothing.</li>
+<li><strong>Pull-based consumption.</strong> The consumer requests work only when it has capacity — Kafka consumer groups, gRPC streaming with flow control, reactive streams. The producer cannot outrun the consumer because the consumer sets the pace.</li>
+<li><strong>Concurrency limits.</strong> Cap the number of requests in flight, not just the queue. Netflix's concurrency-limits library made this famous: an adaptive limit (AIMD, or a gradient algorithm in the Vegas style) that grows when latency is flat and shrinks when latency rises. The limit <em>is</em> the backpressure — excess requests are rejected at the door instead of queueing inside.</li>
+<li><strong>Explicit signals.</strong> <code>Retry-After</code> headers, gRPC <code>RESOURCE_EXHAUSTED</code>, or a load signal in the response body. The signal is only useful if the producer honors it, which is why the next section matters.</li>
+</ul>
+<p>Backpressure only works when the producer <em>can</em> slow down. An internal pipeline stage can wait. A human clicking refresh cannot be told to wait — for them, shedding is the answer. Choose by asking who is upstream and whether they can do anything with the signal.</p>
+<h2>Load shedding: choose what to lose</h2>
+<p>Load shedding is the deliberate refusal of work the system cannot finish in time, so the work it does accept still meets its latency target. It is a feedback loop with four parts: a saturation signal (queue depth, in-flight count, latency — something that rises <em>before</em> latency collapses), a limit (static, or adaptive from latency measurements), a per-request decision at admission, and a cheap, clear response: HTTP 429 or 503 with <code>Retry-After</code>, or gRPC <code>RESOURCE_EXHAUSTED</code> / <code>UNAVAILABLE</code>.</p>
+<p>Shedding needs a <strong>priority rule</strong>. Not all requests are equal: health checks and payments outrank thumbnails and analytics. Shed the least valuable first, and shed it at the cheapest layer — an edge proxy or load balancer sheds before the service parses anything; the service's admission control caps its own concurrency; per-dependency bulkheads keep one slow downstream from consuming every thread. Each layer protects the one behind it.</p>
+<p>And every queued item needs a <strong>deadline</strong>. A consumer that dequeues an item already past its deadline should drop it rather than process dead work — the bounded-queue simulation above is exactly this: the 57,950 requests served too late were work performed for nobody.</p>
+<h2>Why it breaks: the retry storm</h2>
+<p>Shedding has one failure mode that turns the cure into a second disease: retries. If rejected clients retry immediately, shedding multiplies the arrival rate instead of reducing it. The arithmetic is unforgiving:</p>
+<p><img alt="Effective offered load vs shed fraction for 1, 2, and 3 blind retries: at 50% shed with 3 retries, 2,000 req/s offered becomes ~3,750 req/s. The multiplier is 1 + f + f² + f³. Computed in the companion notebook." src="assets/bp_retry_storm.png" /></p>
+<p>Offer 2,000 requests a second, shed half of them, and let every rejected client retry three times with no backoff: the effective offered load becomes <strong>~3,750 requests a second</strong> — nearly double the original overload, aimed at a system that was already shedding. Each retry round adds another wave, and the system that was shedding 50% is now shedding more, which triggers more retries. This is a retry storm, and it is how a ten-minute overload becomes a two-hour outage: the overload ends, but the retry backlog keeps the system saturated long after the original traffic spike is gone.</p>
+<p>The fixes are part of the shedding design, not an afterthought:</p>
+<ul>
+<li><strong>Exponential backoff with jitter.</strong> Each retry waits longer than the last (0.1 s, 0.2 s, 0.4 s…), and jitter randomizes the wait so a thousand clients do not retry in the same millisecond. Jitter is the difference between a spread-out recovery and a synchronized second spike.</li>
+<li><strong><code>Retry-After</code>.</strong> The server tells the client when to come back, and the client obeys it. A 503 without <code>Retry-After</code> is a shrug; with it, it is a schedule.</li>
+<li><strong>Retry budgets.</strong> Cap retries as a fraction of normal traffic — say, retries may add at most 10% on top of the base rate — and drop retries first when the budget is exhausted. The retry budget is itself a shedding policy, applied to the second wave.</li>
+<li><strong>Idempotency.</strong> Retries that do land must be safe to run twice, or the storm corrupts data as well as saturating capacity. (Part 4's outbox rule — deduplicate on the event ID — is the same idea at the message layer.)</li>
+</ul>
+<p>The pattern that makes overload outlast its cause is worth naming: <strong>metastable failure</strong>. The system has two stable states — healthy, and saturated by its own retries — and once it tips into the second, removing the original trigger does not bring it back. The only way out is to shed the retries too, or to drain the retry backlog deliberately. If your runbook for an overload incident does not mention retries, it is incomplete.</p>
+<h2>The decision ladder</h2>
+<ol>
+<li><strong>Bound every queue, from the latency budget.</strong> Cap = drain rate × max wait. An unbounded queue is not a design choice; it is a missing decision.</li>
+<li><strong>Measure goodput, not throughput.</strong> Completions inside the deadline are the only number that matters under load.</li>
+<li><strong>Shed at the cheapest layer, with a priority rule.</strong> Edge first, then admission control, then per-dependency bulkheads. Payments before thumbnails.</li>
+<li><strong>Backpressure where the producer can wait; shedding where it cannot.</strong> Internal stages get a slowdown signal; external clients get a fast 429/503 with <code>Retry-After</code>.</li>
+<li><strong>Design retries as part of shedding.</strong> Backoff, jitter, <code>Retry-After</code>, retry budgets — or your shed load comes back multiplied.</li>
+</ol>
+<h2>Why it breaks</h2>
+<p><strong>The unbounded queue is the failure that ships.</strong> Every system has a queue somewhere that nobody bounded, because bounding it felt like admitting the system could not keep up. It cannot keep up — that is the premise of the whole part. The queue that is not bounded is the one that converts a ten-second traffic spike into a ten-minute latency collapse, serves 57,950 requests too late to matter, and then, through blind retries, keeps itself saturated after the spike is gone. Bound the queue, shed fast, and let the work you accept be work someone still wants. The next part — vector clocks and causality — moves from <em>how much</em> work the system can take to <em>what order</em> it happened in, which is the question that decides whether two replicas can ever agree.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>The utilization cliff is exact: time in system = S / (1 − ρ). At 90% busy you wait 10x the service time; at 99%, 100x. Keep steady-state utilization below ~80%.</li>
+<li>Little's law (L = λ × W) turns a latency problem into a capacity problem: a 20x slower dependency is 20x the in-flight requests at the same arrival rate.</li>
+<li>A queue buys time, never capacity. Size it from the latency budget (cap = drain rate × max wait) and measure goodput — completions inside the deadline — not throughput.</li>
+<li>Blind retries multiply overload: shed half with 3 retries and 2,000 req/s becomes ~3,750. Backoff, jitter, <code>Retry-After</code>, and retry budgets are part of the shedding design.</li>
+</ul>
+<p><em>Honesty note: all simulation numbers are this machine's toy-model measurements, not production telemetry; the M/M/1 and Little's-law figures are textbook queueing theory. No Meta content, per standing exclusion.</em></p>
+<p><em>Companion notebook: <code>backpressure_load_shedding.ipynb</code> — the utilization cliff, Little's law, the bounded-vs-unbounded simulation, and the retry-storm multiplier. All cells exec-tested.</em></p>
+<hr />
+<p><em>Next in the series: Season 2, Part 6 — Vector Clocks &amp; Causality. Follow <a href="https://dev.to/danielsamfdo">danielsamfdo on dev.to</a> for the next part.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/backpressure_load_shedding.ipynb">backpressure_load_shedding.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Half the Memory, Twice the Users: FP8 and NVFP4 KV Caches in vLLM, Plainly | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Half the Memory, Twice the Users: FP8 and NVFP4 KV Caches in vLLM, Plainly</h1>
+<div class="meta">2026-11-24 &middot; GDE #6 / vLLM serving (low-precision KV cache — FP8/NVFP4, vLLM 0.32)</div>
+<article class="post">
+<p>Your model weights are fixed. Your KV cache is not — it grows with every token, every user, every second of context. On a long-context deployment the KV cache is the thing that decides how many users fit on one GPU, and in vLLM 0.32 it got a lot smaller: FP8 KV cache is now a one-flag production default, and NVFP4 KV cache — previously Blackwell-only — now runs on Ampere and Hopper too. The hook is the arithmetic, and it is blunt: a Llama-3.1-70B request at 128K context needs <strong>40 GiB of KV cache in BF16, 20 GiB in FP8, and 11.25 GiB in NVFP4</strong>. On one H100, an 8B model at 128K context goes from <strong>3 concurrent users to 13</strong> by changing one flag. That is not a micro-optimisation. That is a capacity decision.</p>
+<h2>The ELI5 version</h2>
+<p>Think of the KV cache as the model's short-term memory. Every token you have already processed leaves two notes — a key and a value — so the model does not have to re-read the whole conversation to write the next word. The notes are written in a precise handwriting (BF16, 16 bits per number). FP8 is the same notes written in a coarser handwriting (8 bits): half the paper, still legible, because attention averages out small rounding errors. NVFP4 is shorthand (4 bits) plus a tiny conversion table per 16 notes, so the shorthand stays readable. The model still reads the same notes — it just needs a quarter of the shelf space.</p>
+<h2>The memory arithmetic: one formula, three numbers</h2>
+<p>The KV cache stores one key vector and one value vector per token, per layer, per KV head. Its size per token is therefore:</p>
+<pre><code>bytes/token = 2 × layers × KV heads × head dim × bytes per element
+</code></pre>
+<p>BF16 stores 2 bytes per element, FP8 stores 1, and NVFP4 stores 0.5 bytes for the value plus a 1-byte FP8 scale shared by each 16-element block — 0.5625 bytes per element effective. The companion notebook computes the whole table; here is the version that matters:</p>
+<p><img alt="KV cache per token for Llama-3.1-8B and 70B in BF16, FP8 and NVFP4: 8B goes 128 → 64 → 36 KiB per token; 70B goes 320 → 160 → 90 KiB. At 128K context the 70B cache is 40 GiB in BF16, 20 GiB in FP8, 11.25 GiB in NVFP4. Arithmetic in the companion notebook." src="assets/kv_memory_math.png" /></p>
+<p>Two things to notice. First, the 70B numbers are the ones that hurt: a single 128K-context request in BF16 eats half an 80 GB H100 just for KV, before the 140 GB of weights are even counted (which is why 70B serving is a multi-GPU game in the first place). Second, NVFP4's advantage is not 4x — it is 3.56x, because the scale factors are real bytes. Anyone quoting "4-bit = quarter the memory" is forgetting the scales.</p>
+<h2>What each format actually stores</h2>
+<p><img alt="Bits stored per KV element: BF16 16 bits, FP8 (E4M3) 8 bits, NVFP4 (E2M1) 4.5 bits including the per-16-element scale. NVFP4 values are E2M1 — 1 sign bit, 2 exponent bits, 1 mantissa bit — with an FP8 scale per 16-element block and a second-level FP32 scalar per tensor." src="assets/kv_format_bits.png" /></p>
+<p>NVFP4 is NVIDIA's microscaling format: each value is E2M1 (1 sign bit, 2 exponent bits, 1 mantissa bit), grouped into 16-element micro-blocks, each block carrying its own FP8 (E4M3) scale factor, plus a second-level FP32 scalar per tensor. The block scale is the whole trick — a single global scale would drown in the KV cache's outliers (a few attention heads carry values orders of magnitude larger than the rest), while per-element scales would cost more than the values. Sixteen elements per scale is the compromise NVIDIA landed on, and it is why the format holds up at 4 bits where naive INT4 falls apart.</p>
+<p>FP8 KV is simpler: E4M3, one scale per tensor or per attention head. Per-head scales are the accurate option, but they need the FlashAttention backend and calibration through llm-compressor — per-tensor is the zero-config default, and for most workloads it is enough.</p>
+<h2>What changed in vLLM 0.32</h2>
+<p>vLLM 0.32.0, released October 18, 2026, widened NVFP4 KV cache support from Blackwell (SM100) to SM8x (Ampere, including A100) and SM90 (Hopper, including H100 and H200) — PR #46963 for SM8x/SM12x, PR #60620 for SM90 — plus XQA decode support on SM12x and an FP8 KV default for GLM-5.x models on SM100. Before 0.32, <code>--kv-cache-dtype nvfp4</code> had a paged write path only on SM100, so the flag simply did not work on the GPUs most people actually rent.</p>
+<p>The practical consequence: the 4-bit KV cache is no longer a Blackwell marketing slide. If you are serving on H100s or A100s on vLLM 0.32 or later, you can measure it today:</p>
+<pre><code class="language-bash">python -m vllm.entrypoints.openai.api_server \
+    --model meta-llama/Llama-3.1-8B-Instruct \
+    --kv-cache-dtype nvfp4 \
+    --gpu-memory-utilization 0.90 \
+    --max-model-len 131072
+</code></pre>
+<p>FP8 is the same one-flag change (<code>--kv-cache-dtype fp8</code>), and it works on H100 and A100 alike. One caveat on A100: it has no hardware FP8 tensor cores, so vLLM stores the KV in FP8 and dequantizes to BF16 before attention. You still get the memory reduction — the concurrency win — but no throughput gain from the quantization itself. On Hopper, the FP8 path is hardware-native.</p>
+<h2>Concurrency is the number that pays</h2>
+<p>Memory per token is abstract. Users per GPU is a bill. Take an 8B model on one H100: BF16 weights take ~16 GiB, leaving roughly a 60 GiB KV pool at 90% memory utilization. How many 128K-context users fit?</p>
+<p><img alt="Max concurrent requests on one H100 with a 60 GiB KV pool, 8B model: at 32K context BF16 15, FP8 30, NVFP4 53; at 128K context BF16 3, FP8 7, NVFP4 13. Concurrency is the number that pays — the flag is a capacity decision. Arithmetic in the companion notebook." src="assets/kv_concurrency.png" /></p>
+<p>At 128K context, NVFP4 serves <strong>4.3x the concurrent users of BF16</strong> on the same card. At 32K it is 3.5x. Note the shape: the win grows with context length, because the KV cache is a larger share of the memory at long context. If your workload is short prompts, the flag barely matters; if it is long-context agents, it is the cheapest capacity you will ever buy.</p>
+<h2>What you pay, and what breaks</h2>
+<p><img alt="The trade-off, all figures vendor-reported: decode ITL slope 1.00 BF16 vs 0.54 FP8 (vLLM blog, Llama-3.1-8B on H100); TTFT on prefix-cache reuse 1.0x FP8 vs up to 3x NVFP4 (NVIDIA); accuracy loss ~0.1-0.3% FP8 typical, under 1% NVFP4 (NVIDIA)." src="assets/kv_tradeoff.png" /></p>
+<p>The measured trade-offs, with sources:</p>
+<ul>
+<li><strong>Decode gets faster, not just smaller.</strong> The vLLM blog's April 2026 stress test of <code>--kv-cache-dtype fp8</code> (e4m3) across Hopper and Blackwell found the decode inter-token-latency slope drops to <strong>~54% of BF16</strong> for Llama-3.1-8B on H100, with break-even around ~7k tokens — below that, the dequantization overhead roughly cancels the bandwidth win. The blog's conclusion: FP8 KV is "ready to be the default starting point for many long-context deployments."</li>
+<li><strong>Prefill reuse gets much faster.</strong> NVIDIA's own NVFP4 KV benchmark found up to <strong>3x better time-to-first-token</strong> on prefill with KV cache reuse, because the smaller cache means more prefixes stay resident and more requests hit them. That is a second-order win: the format does not just fit more, it reuses more.</li>
+<li><strong>Accuracy costs under 1%.</strong> NVIDIA reports under 1% accuracy loss across code-generation, knowledge, and long-context benchmarks for NVFP4 KV. DeepSeek-R1-0528 quantized to NVFP4 stays within ~1% of FP8 across MMLU-Pro, GPQA, and LiveCodeBench at ~2.3x higher throughput. GLM-5.x, which defaults to FP8 KV on SM100, sees a 2.3–5.5% throughput gain at a 7–11% TTFT cost — the TTFT cost is the one number that goes the wrong way, and it is worth measuring on your own workload.</li>
+</ul>
+<p>And the guard rails, which are not optional:</p>
+<ul>
+<li><strong>Head size 64 is refused.</strong> PR #46963 explicitly refuses NVFP4 KV with head dimension 64, where it reports misreads of 10–15%, and with attention sinks. vLLM refuses these combinations at backend selection, before weights load — but only if you are on a version that has the check. The companion notebook includes a config guard that encodes the whole support matrix; run it before you deploy.</li>
+<li><strong>Per-head FP8 scales need calibration.</strong> The accurate FP8 path needs the FlashAttention backend and calibration through llm-compressor. Per-tensor scales are free and usually fine; if your long-context evals regress on FP8, per-head calibrated scales are the first thing to try, not a bigger GPU.</li>
+<li><strong>Measure your own evals.</strong> Every accuracy figure above is the vendor's or the format author's own measurement, on their hardware, on their benchmarks. The format is cheap to try — one flag, one A/B against your own long-context eval set — and that measurement is the only one that counts for your deployment.</li>
+</ul>
+<h2>The decision ladder</h2>
+<ol>
+<li><strong>Serving long context on Hopper or Ampere, vLLM ≥ 0.32:</strong> start with <code>--kv-cache-dtype fp8</code>. It is the safe default — halves memory, faster decode past ~7k tokens, negligible accuracy cost.</li>
+<li><strong>Context ≥ 32K and you need more concurrency:</strong> measure <code>--kv-cache-dtype nvfp4</code> against your own evals. If accuracy holds within your budget, it is 4.3x the concurrency of BF16 at 128K.</li>
+<li><strong>On vLLM &lt; 0.32, or head_dim 64, or attention sinks:</strong> stay on FP8 (or BF16) until you upgrade — NVFP4 is refused or unavailable, and the refusal is there for a reason.</li>
+<li><strong>Short prompts only:</strong> skip both. Below ~7k tokens the decode win vanishes, and you are adding a quantization step for nothing.</li>
+</ol>
+<p>The KV cache was always the capacity bottleneck in long-context serving — Part 2 of this lane showed why memory, not FLOPs, caps concurrency. FP8 and NVFP4 do not change the formula. They change the constant, by 2x and 3.56x. And in serving, the constant is the bill.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>KV bytes per token = 2 × layers × KV heads × head dim × bytes per element. FP8 halves it; NVFP4 cuts it to ~28% of BF16 (the scales are real bytes).</li>
+<li>A 70B request at 128K context: 40 GiB BF16, 20 GiB FP8, 11.25 GiB NVFP4. An 8B model on one H100 goes from 3 concurrent 128K users to 13.</li>
+<li>vLLM 0.32 widened NVFP4 KV from Blackwell-only to Ampere and Hopper (PRs #46963, #60620). FP8 KV is one flag on any Hopper/Ampere card.</li>
+<li>The accuracy bill is small (&lt;1% per NVIDIA) but the guard rails are real: no head_dim 64, no attention sinks, per-head FP8 scales need calibration — and every figure above is vendor-reported, so measure your own evals before you deploy.</li>
+</ul>
+<p><em>Honesty note: all benchmark and accuracy figures in this post are the cited sources' own reported results (vLLM blog April 2026, NVIDIA's NVFP4 KV benchmark writeup, PR #46963/#60620, DeepSeek-R1 NVFP4 evaluation) — not independently measured. The 4.3x concurrency figure and the memory arithmetic are computed in the companion notebook from the published formula. No Meta content, per standing exclusion.</em></p>
+<p><em>Companion notebook: <code>kv_fp8_nvfp4.ipynb</code> — KV memory arithmetic, concurrency table, decode break-even toy model, and a config guard encoding the vLLM 0.32 support matrix. All cells exec-tested.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/kv_fp8_nvfp4.ipynb">kv_fp8_nvfp4.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
