@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design, Plainly — Season 2, Part 6: Vector Clocks & Causality | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>System Design, Plainly — Season 2, Part 6: Vector Clocks & Causality</h1>
+<div class="meta">2026-11-25 &middot; System design (vector clocks & causality) — Season 2, Part 6</div>
+<article class="post">
+<p>Part 5 gave you the escape hatch for overload: shed fast, or the queue eats you. This part is about a quieter failure — two replicas that disagree about what happened first, and a database that silently deletes one user's write because it trusted a clock. The benchmark hook is a probability, not a latency: take two servers whose clocks drift by the ordinary ±100 ms that NTP leaves behind, and write to the same key 50 ms apart in real time. The wall clock gets the order <strong>wrong 28% of the time</strong>. Not 28% under adversarial conditions — 28% on a normal day, with normal clocks, for writes a twentieth of a second apart. And when the order is wrong, last-write-wins throws away the newer write, reports success, and never tells anyone. The fix is not a better clock. The fix is to stop asking clocks what happened, and start asking causes.</p>
+<h2>The ELI5 version</h2>
+<p>Three friends share a grocery list on a whiteboard. Alice writes "milk" at 10:00. Bob, who has not seen the whiteboard since 9:55, writes "eggs" at 10:01 — from his phone, from a different store. Carol sees both and writes "milk, eggs" at 10:02.</p>
+<p>Now imagine Alice and Bob both edit at the same moment, neither having seen the other's edit. Alice's phone says 10:00:00, Bob's says 10:00:01, so the app keeps Bob's list and deletes Alice's milk. But Bob's phone clock was running 80 milliseconds fast and Alice's 70 slow — Alice actually wrote <em>after</em> Bob. The app picked a winner using two clocks that disagreed by 150 milliseconds, and the milk is gone.</p>
+<p>A vector clock is the whiteboard keeping a tally instead of a timestamp. Next to each item it records <em>who has seen what</em>: "Alice has written twice, Bob once, Carol zero times." When Carol's edit arrives with a tally that includes Alice's and Bob's, the whiteboard knows it came after both. When Alice's and Bob's tallies each include things the other has never seen, the whiteboard knows they happened at the same time — and it keeps both lists instead of deleting one. The tally never asks what time it is. It only asks: did this writer see that writer's work?</p>
+<h2>How it works: happens-before</h2>
+<p>Leslie Lamport's 1978 paper defined the only ordering that matters in a distributed system, and it has nothing to do with clocks. Event <strong>a happens-before b</strong> (written a → b) if one of three things is true:</p>
+<ol>
+<li><strong>Same process:</strong> a and b happened on the same machine, and a came first.</li>
+<li><strong>Message:</strong> a is the sending of a message and b is the receiving of it.</li>
+<li><strong>Transitivity:</strong> a → c and c → b, so a → b.</li>
+</ol>
+<p>If neither a → b nor b → a, the events are <strong>concurrent</strong> (a ∥ b) — genuinely unordered. No amount of clock precision changes that, because concurrency is a fact about information flow, not about time. Two events are concurrent exactly when no chain of messages connects them.</p>
+<p><img alt="Three process timelines: P1 writes x=1 with vector (1,0,0), sends to P2, which merges to (2,1,0) and writes y=2 with (2,2,0). P3 writes z=3 with (0,0,1) and no message path to P1 or P2. The rule a → b ⟺ V(a) &lt; V(b) holds, and (2,2,0) vs (0,0,1) are concurrent because neither dominates. Computed in the companion notebook." src="assets/vc_happens_before.png" /></p>
+<p>Lamport also gave the first clock for this ordering: one counter per process. On a local event, increment; on receiving a message, take the max of your counter and the sender's, then increment. The guarantee is one-way: if a → b, then L(a) &lt; L(b). The converse fails, and the failure is the whole problem. The notebook runs the demo: two events on two machines that never exchanged a message both get Lamport stamp 1 — and a genuinely ordered pair can get stamps 1 and 2, the exact same shape of numbers. A scalar clock can put every event into <em>an</em> order that never contradicts cause and effect, but it cannot tell you which pairs were simultaneous. And simultaneous is exactly where conflicts live.</p>
+<p>Vector clocks (Fidge 1988, Mattern 1989) fix this by replacing the single counter with one counter per node. Each process i keeps a vector V of length N, and the rules are the same shape as Lamport's:</p>
+<ul>
+<li><strong>Local event at node i:</strong> V[i] += 1.</li>
+<li><strong>On receiving a message carrying vector W:</strong> V[k] = max(V[k], W[k]) for every k, then V[i] += 1.</li>
+</ul>
+<p>The comparison rule is component-wise: <strong>V(a) &lt; V(b)</strong> if every entry of a is ≤ the matching entry of b, and at least one is strictly less. Then the guarantee runs in <em>both</em> directions:</p>
+<pre><code>a → b   ⟺   V(a) &lt; V(b)
+</code></pre>
+<p>If neither vector dominates the other — one is ahead in some entry and behind in another — the events are concurrent, and the clock has <em>proved</em> it. In the diagram above, [2,2,0] and [0,0,1] are incomparable: the first is ahead in entries 1 and 2, the second ahead in entry 3. Nobody has to guess. The clock says: these two writes never saw each other.</p>
+<h2>Why wall clocks fail: the 28% number</h2>
+<p>The obvious way to order two writes is a timestamp: keep the newer one. That is last-write-wins, and it is what many systems do by default — Cassandra, for example, resolves conflicting writes per column by timestamp. It breaks for a reason that has nothing to do with your code: server clocks drift. Two machines in the same data center routinely disagree by tens of milliseconds; NTP corrections can move a clock backwards; virtual machines are worse.</p>
+<p>The diagram is a concrete case: node A's clock runs 80 ms fast, node B's runs 70 ms slow — 150 ms of total skew, entirely ordinary. A writes x=1 at real time 100 ms and gets stamped 180. B writes x=2 at real time 200 ms — genuinely later — and gets stamped 130. The wall clock says B came first, so last-write-wins keeps A's stale x=1 and discards B's newer write. No error, no log line, no conflict to resolve. The data is just gone.</p>
+<p><img alt="Two timelines: in real time A writes x=1 at 100 ms and B writes x=2 at 200 ms. On wall-clock stamps A is stamped 180 ms (clock +80 ms fast) and B is stamped 130 ms (clock −70 ms slow), so the wall clock orders B before A and last-write-wins keeps the stale value. Computed in the companion notebook." src="assets/vc_causality_vs_wallclock.png" /></p>
+<p>The simulation in the notebook generalizes it. With each node's clock skewed uniformly in [−100, +100] ms, the probability that the wall clock mis-orders two writes depends only on how far apart they are in real time:</p>
+<ul>
+<li>10 ms apart: mis-ordered <strong>45%</strong> of the time — nearly a coin flip.</li>
+<li>50 ms apart: mis-ordered <strong>28%</strong> of the time.</li>
+<li>100 ms apart: mis-ordered <strong>13%</strong> of the time.</li>
+<li>200 ms apart: mis-ordered <strong>0%</strong> — the gap finally exceeds the maximum possible skew.</li>
+</ul>
+<p>The rule of thumb: any two writes closer together than twice your worst clock skew are unordered by wall clock, full stop. If your skew is ±100 ms, that is a 200 ms window in which timestamps are noise. And the failure is silent by construction — last-write-wins cannot report a conflict it cannot see.</p>
+<h2>What a vector clock does with a conflict</h2>
+<p>A vector clock detects the conflict; it does not resolve it. That distinction is the point. Once the clock proves two versions are concurrent, the system has three options:</p>
+<ul>
+<li><strong>Keep both as siblings.</strong> The next read returns both versions, and the application merges them. Amazon's Dynamo paper (2007) describes exactly this for shopping carts, where the merge is the union of the items — a cart that never loses an item. Riak exposed the same siblings to its clients. The cost is complexity pushed to the application: somebody has to write the merge.</li>
+<li><strong>Merge automatically with a CRDT.</strong> If the value is a set, a counter, or another conflict-free replicated data type, the merge rule is built into the type and no application callback is needed. (Season 3, Part 10 comes back to CRDTs.)</li>
+<li><strong>Apply a deterministic tiebreak.</strong> Pick the version with the higher node ID, or the higher timestamp — but now it is an <em>explicit, documented</em> choice made after detecting the conflict, not an accident of clock skew. If you are going to lose data, lose it on purpose, with the trade-off written down.</li>
+</ul>
+<p>What you cannot do is pretend the conflict did not happen. That is what last-write-wins does, and it is the only option that is never correct by design.</p>
+<h2>The conflict math: hot keys conflict almost always</h2>
+<p>Conflicts are a rate problem, not a bug. A write to a key conflicts when another write to the same key lands inside the <strong>visibility window</strong> W — the time before the first write has reached the other replicas. With writes arriving as a Poisson process at rate λ per second, the probability is:</p>
+<pre><code>P(conflict) = 1 − exp(−λ·W)
+</code></pre>
+<p><img alt="Conflict probability vs writes per second to one key, for visibility windows of 20 ms, 50 ms, and 200 ms. At 10 writes/s with a 50 ms window, 39% of writes conflict; at 100 writes/s it is 99%; cross-region at 200 ms, 10 writes/s conflicts 86% of the time. Computed in the companion notebook." src="assets/vc_conflict_math.png" /></p>
+<p>Read the curve, not the formula. At 1 write a second per key with a 50 ms window, only 5% of writes conflict — rare enough to ignore, which is why most keys never show a sibling. At 10 writes a second, <strong>39%</strong> conflict. At 100 a second, <strong>99%</strong> — effectively every write is concurrent with another. And the window matters as much as the rate: the same 10 writes a second across regions, where replication takes 200 ms instead of 50, conflicts <strong>86%</strong> of the time. The expected number of siblings per read is 1 + λ·W, so that hot key at 100 writes a second carries about 6 versions on a typical read.</p>
+<p>The interview version of this: if you design a Dynamo-style store and the interviewer asks what happens to a hot key, the answer is not "it works" — it is "at 10 writes a second, two in five writes return siblings, and the application merges them; at 100 a second, the sibling list is the steady state, so either the merge is cheap or the key needs a leader." A system that accepts writes on multiple replicas without coordinating first has <em>chosen</em> this arithmetic. The vector clock just makes the choice visible.</p>
+<h2>The size cost: O(N) per key, forever</h2>
+<p>The clock's one real weakness is size. A vector has one entry per node that has ever written the key, and each entry is a counter plus a node identifier — 24 bytes in the notebook's accounting (8-byte counter, 16-byte node ID). The cost grows linearly with N:</p>
+<p><img alt="Vector clock size per key version vs number of nodes that have ever written the key: 72 bytes at N=3, 240 bytes at N=10, 1.2 KB at N=50, 2.4 KB at N=100, 24 KB at N=1,000 — 24x a 1 KB value. Computed in the companion notebook." src="assets/vc_size_cost.png" /></p>
+<p>At N = 3 the clock is 72 bytes — noise. At N = 10 it is 240 bytes, and a million keys carry <strong>240 MB</strong> of clocks alone. At N = 1,000 the clock is <strong>24 KB per key version — 24 times a 1 KB value</strong>. In a system with node churn, where the set of writers keeps growing, the vector grows without bound, and it travels with every read and write.</p>
+<p>The practical answers, in order of how often they are used:</p>
+<ul>
+<li><strong>Version vectors, not vector clocks.</strong> Attach the vector to the <em>data</em>, with one entry per replica that coordinates writes to the key — not one entry per client, and not one entry per event. The replica set is small and fixed; the client set is not. This is the variant Dynamo actually used.</li>
+<li><strong>Dotted version vectors.</strong> Give each sibling its own single "dot" (one counter) instead of a full vector, so the size tracks the number of <em>siblings</em>, not the number of nodes. Riak moved to these after its original vector clocks produced sibling explosion — stale contexts piling up versions that should have been replaced.</li>
+<li><strong>Prune by timestamp.</strong> Drop entries for nodes that have not written recently, bounded by a timestamp. This reintroduces a small correctness risk if a pruned entry is revived, so it is a documented trade-off, not a free lunch.</li>
+<li><strong>Coordinator per key.</strong> Route all writes for a key through one coordinator, which keeps the vector to the replica set. You are most of the way to a leader at that point — which is why strongly consistent stores skip vector clocks entirely and use a log instead (Part 2's Raft).</li>
+</ul>
+<p>One more thing the size chart hides: comparison is O(N) too, but N is small in practice and the comparison is a handful of integer compares. The size is the cost that bites, not the CPU.</p>
+<h2>The decision ladder</h2>
+<ol>
+<li><strong>Never order cross-machine events by wall clock.</strong> If two writes can land within twice your worst clock skew — 200 ms at ±100 ms — their timestamps are noise. Use a logical clock.</li>
+<li><strong>Use a Lamport scalar when you need a cheap total order and don't need to detect concurrency.</strong> Raft's log index is exactly this: one order, consistent with causality, no conflict detection required.</li>
+<li><strong>Use a vector clock (or version vector) when two replicas can both accept writes and you must tell "after" from "at the same time."</strong> That is the Dynamo/Riak case, and the clock's if-and-only-if guarantee is what makes siblings safe to return.</li>
+<li><strong>Design the merge before you ship the clock.</strong> A sibling the application cannot merge is just last-write-wins with extra steps. If there is no meaningful merge, use a CRDT or accept explicit LWW — and write the data loss down.</li>
+<li><strong>Bound the clock.</strong> Version vectors per replica set, dotted version vectors per sibling, or pruning by timestamp. An unbounded vector is a slow memory leak with a correctness story attached.</li>
+</ol>
+<h2>Why it breaks</h2>
+<p><strong>The silent overwrite is the failure that ships.</strong> Last-write-wins on a wall clock looks like a decision procedure and behaves like one — until you measure it. At ±100 ms of ordinary skew, more than one in four write pairs 50 ms apart get their order flipped, and the loser is deleted with a success response. The system does not know it lost data, the client does not know it lost data, and the first person to notice is the user whose item vanished from the cart. A vector clock does not make conflicts go away. It makes them <em>visible</em>, and visible conflicts get merged while invisible ones get deleted. The next part — gossip protocols — moves from <em>ordering</em> events to <em>spreading</em> them: how a thousand nodes learn what happened without anyone telling them all at once.</p>
+<h2>Takeaways</h2>
+<ul>
+<li>Wall clocks cannot order events across machines: ±100 ms of ordinary skew mis-orders ~28% of write pairs 50 ms apart in real time, and 45% at 10 ms apart. Last-write-wins on a wall clock is silent data loss with a timestamp on it.</li>
+<li>Lamport's scalar clock gives a total order consistent with causality, but it cannot distinguish "happened after" from "happened at the same time." A vector clock can: a → b ⟺ V(a) &lt; V(b), in both directions.</li>
+<li>Conflicts are a rate problem: P(conflict) = 1 − exp(−λ·W). At 10 writes/s per key with a 50 ms visibility window, 39% of writes are concurrent; at 100/s it is 99%. Hot keys conflict almost always — design the merge, don't hope it won't happen.</li>
+<li>The clock costs O(N) per key version: 24 KB at N = 1,000, which is 24x a 1 KB value. Version vectors, dotted version vectors, and pruning by timestamp keep it bounded.</li>
+<li>A vector clock detects a conflict; it does not resolve one. Resolution is the application's job (merge the siblings), a CRDT's job (merge built into the type), or an explicit, documented last-write-wins — never an accident.</li>
+</ul>
+<p><em>Honesty note: all simulation numbers are this machine's toy-model measurements, not production telemetry; the Lamport/vector-clock rules and the Dynamo/Riak history are the published results cited in the text. No Meta content, per standing exclusion.</em></p>
+<p><em>Companion notebook: <code>vector_clocks_causality.ipynb</code> — the vector-clock simulation (events, merge, compare), the Lamport indistinguishability demo, the wall-clock mis-ordering Monte Carlo, the conflict-probability math with Monte Carlo cross-check, and the size-cost arithmetic. All cells exec-tested.</em></p>
+<hr />
+<p><em>Next in the series: Season 2, Part 7 — Gossip Protocols. Follow <a href="https://dev.to/danielsamfdo">danielsamfdo on dev.to</a> for the next part.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/vector_clocks_causality.ipynb">vector_clocks_causality.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
