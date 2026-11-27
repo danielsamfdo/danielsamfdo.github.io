@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline Batch Inference with vLLM: The Boring 10x | Daniel Sam Pete Thiyagu</title>
+<style>
+:root{--ink:#17202a;--muted:#5e6a75;--line:#dfe5ea;--surface:#f7f9fb;--panel:#fff;
+--accent:#0f766e;--accent-dark:#134e4a;--shadow:0 18px 45px rgba(23,32,42,.08);--radius:8px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:var(--surface);
+font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+a{color:var(--accent-dark);text-decoration:none}a:hover{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:10;background:rgba(247,249,251,.92);
+border-bottom:1px solid rgba(223,229,234,.8);backdrop-filter:blur(18px)}
+.nav-inner{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.nav-inner .brand{font-weight:700;margin-right:auto}
+.nav-inner a{font-size:14px}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:34px;line-height:1.25;margin:8px 0 12px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:20px}
+.post p,.post li{font-size:17px;line-height:1.75}
+.post h2{font-size:24px;margin:34px 0 10px}.post h3{font-size:19px;margin:26px 0 8px}
+.post img{max-width:100%;border-radius:var(--radius);box-shadow:var(--shadow);margin:18px 0 4px}
+code{background:#eef3f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+pre{background:#0e2430;color:#e6f2f0;padding:14px 16px;border-radius:var(--radius);overflow:auto;font-size:14px}
+pre code{background:transparent;padding:0;color:inherit}
+blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--line);margin:28px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:4px 0 8px;font-size:18px;line-height:1.35}
+.card .d{color:var(--muted);font-size:13px}
+.card .t{display:inline-block;font-size:12px;background:#e6f4f1;color:var(--accent-dark);
+border-radius:20px;padding:2px 10px;margin-top:8px}
+.res{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+padding:14px 18px;margin:26px 0}
+.res h3{margin:0 0 6px;font-size:16px}
+.back{font-size:14px}
+</style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-X4D6KVEECF"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-X4D6KVEECF');</script></head><body>
+<nav class="nav"><div class="nav-inner">
+<a class="brand" href="/">Daniel Sam Pete Thiyagu</a>
+<a href="/#impact">Impact</a><a href="/#experience">Experience</a><a href="/blog/">Blog</a><a href="/#contact">Contact</a>
+</div></nav>
+<main class="wrap">
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+<h1>Offline Batch Inference with vLLM: The Boring 10x</h1>
+<div class="meta">2026-11-27 &middot; GDE #9 / vLLM serving (offline batch inference — LLM.generate, batch-size sweep)</div>
+<article class="post">
+<p>The most exciting number in LLM serving this year is also the most boring one. It is not a new model, a new chip, or a new algorithm. It is what happens when you stop pretending your batch job is a live service: you hand vLLM a list of prompts, walk away, and come back to 4–6x the throughput of the naive way — up to ~10x once you stack the cheap knobs on top. No new hardware, no new code path, no paper to read. The engine already does it. The trick is using the API that was built for the job: <code>LLM.generate()</code>, vLLM's offline batch inference, instead of the HTTP server.</p>
+<p>This is GDE post #9 in the vLLM serving series, and it is the one that pays for the most real work. Most LLM compute in production is not a user waiting on a chat box. It is evals, distillation data, document classification, embedding backfills, synthetic data generation, nightly report summarization — jobs where nobody is watching a spinner and the only metric that matters is tokens per dollar. For those jobs, online serving is the wrong tool, and the penalty is measured in multiples.</p>
+<h2>The ELI5 version</h2>
+<p>Online serving is a taxi service: one passenger arrives, one car is dispatched, and the car waits at the curb whether or not it is full. Offline batch inference is a bus: the bus leaves when it is full, every seat is occupied, and the cost per passenger collapses. vLLM's <code>LLM.generate()</code> is the bus. You give it all 10,000 prompts at once, and the engine's continuous-batching scheduler packs them onto the GPU the way a bus packs seats — a prompt that finishes early frees its KV cache blocks immediately, and the next prompt takes its place without the engine ever idling. The HuggingFace <code>generate()</code> loop, by contrast, is a taxi that takes one passenger at a time and drives back empty between trips.</p>
+<p>The reason the bus wins is arithmetic, not magic. A GPU doing LLM decoding is memory-bandwidth bound: each forward pass reads the whole model's weights off HBM, and the cost of that read is the same whether you decode one sequence or sixty-four. Batch 64 sequences together and you pay for the weights once and amortize it across 64 outputs. That is the entire 4–6x.</p>
+<h2>How it works: the same engine, a different front door</h2>
+<p>The important thing to understand is that offline inference is not a different vLLM. It is the same V1 engine, the same scheduler, the same PagedAttention KV cache manager — with the HTTP server, the request queue, and the per-request latency SLOs removed. <code>llm.generate(prompts, sampling_params)</code> takes a list of strings and a <code>SamplingParams</code>, runs the whole list through the engine, and returns a list of <code>RequestOutput</code> objects. Under the hood, the V1 scheduler still does continuous batching and chunked prefill; the difference is that it sees the entire workload up front, so it can make globally good packing decisions instead of reacting to arrivals one at a time.</p>
+<p>That "sees the whole job" property unlocks the two optimizations that online serving cannot use. First, you can reorder the queue however you like before you run it: sort prompts so shared prefixes sit together, and the prefix cache (automatic in vLLM 0.33+, enabled with <code>enable_prefix_caching=True</code>) turns repeated system prompts and few-shot blocks into cache hits instead of recomputation. Research systems built on exactly this idea — BlendServe and BatchLLM — beat stock vLLM and SGLang by 1.1x to 1.44x. Second, you can tolerate a configuration that is suboptimal for any single request, because you are optimizing the job's total throughput: bigger <code>max_num_batched_tokens</code>, higher <code>gpu_memory_utilization</code>, no speculative decoding at high batch. Online serving has neither option — each request arrives individually and must be served immediately.</p>
+<p>The minimal code is four lines:</p>
+<pre><code class="language-python">from vllm import LLM, SamplingParams
+
+llm = LLM(model=&quot;meta-llama/Llama-3.1-8B-Instruct&quot;,
+          gpu_memory_utilization=0.95,
+          max_num_batched_tokens=16384,
+          enable_prefix_caching=True)
+sp = SamplingParams(temperature=0.0, max_tokens=256)
+outputs = llm.generate(prompts, sp)  # sort prompts by shared prefix first
+</code></pre>
+<p>For jobs too big for one process, the same call scales through the data-parallel path (<code>data_parallel_size</code> in vLLM 0.33+) or through Ray Data's LLM batching, which shards the prompt list across replicas and collects the results. The shape of the code does not change; only the fan-out does.</p>
+<h2>The numbers: throughput vs batch size</h2>
+<p>The headline measurement comes from a hands-on A100 walkthrough: Llama-3.1-8B, 256 output tokens, 40 prompts. HuggingFace sequential: ~180–240 seconds, ~50–80 tokens per second. vLLM offline batch: ~30–60 seconds, ~300–500 tokens per second. That is a 4–6x speedup from batching alone, and the mechanism is visible in the shape of the curve: throughput climbs steeply with batch size and then flattens when the KV cache and the scheduler's token budget saturate — on this setup, around batch 64.</p>
+<p><img alt="Output tokens per second against batch size for vLLM offline batch inference versus HuggingFace sequential generation, on an A100 80GB with Llama-3.1-8B and 256 output tokens. vLLM rises from 25 tokens per second at batch 1 to about 420 at batch 128 and then saturates; HuggingFace stays flat near 65. The cited band of 300 to 500 tokens per second is shaded." src="assets/batch_throughput.png" /></p>
+<p>Two more numbers frame the picture. First, the V1 engine — the default since the 2025 release cycle — is up to 1.7x higher throughput than the old V0 engine without multi-step scheduling, with even larger gains for vision-language models. Second, the curve saturates: past the KV-cache limit, more prompts in the batch buy nothing, and the scheduler starts queueing or preempting. The notebook works out the saturation point for your model size before you waste a run finding it empirically.</p>
+<h2>The TTFT trap: the benchmark that measures the wrong API</h2>
+<p>There is a famous counter-example, and it is worth understanding because it is a methodology lesson, not a vLLM bug. A 133-benchmark sweep on a V100 with 4-bit models found vLLM's mean time to first token at 27,775 ms (Qwen2.5-7B) and 47,297 ms (Llama-3.1-8B), against 594 ms and 736 ms for HuggingFace — 40–80x slower, with a p99 over 152 seconds at long output budgets. The author is explicit about why: the sweep measured offline batch inference, and <code>LLM.generate()</code> batches all 62 prompts together before processing any of them, so every prompt waits for the entire batch to be assembled and scheduled. HuggingFace processes each prompt one at a time, so its first prompt starts immediately.</p>
+<p>The same engine, measured through the online server, tells the opposite story: <code>vllm bench serve</code> on Hermes-3-Llama-3.1-8B reports mean TTFT of 71.5 ms, median 73.9 ms, p99 79.5 ms — about 9x faster than HuggingFace sequential on the same metric. The engine did not change. The API did. Offline batching optimizes total job throughput and sacrifices per-request latency by design; online serving optimizes per-request latency and sacrifices some throughput to do it. Judging one by the other's metric is how you conclude the bus is slower than the taxi — true, per passenger, and irrelevant to the bus's job.</p>
+<p><img alt="Mean time to first token on a log scale for three setups: HuggingFace sequential at 0.65 seconds, vLLM offline batch at 47.3 seconds, and the vLLM online server at 0.072 seconds. The offline number is a batch-assembly artifact, not an engine property." src="assets/batch_ttft_trap.png" /></p>
+<h2>The five knobs that stack to ~10x</h2>
+<p>Parasail's 2026 batching guide distills the tuning to five knobs, and the notebook multiplies them out. The V1 engine is worth up to 1.7x over V0. Batch packing itself is the 4–6x above. Prefix caching plus sorting shared prefixes together is 1.1–1.44x over stock vLLM. Raising <code>gpu_memory_utilization</code> from 0.90 to 0.95 on dedicated hardware buys roughly 1.1x more KV headroom. And disabling speculative decoding once the batch is in the low tens — vLLM exposes <code>--speculative-disable-by-batch-size</code> for exactly this — is worth about 1.15x, because at high batch the draft model's overhead exceeds its gain. Multiply the headroom: 1.7 × 5.0 × 1.3 × 1.1 × 1.15 ≈ 14x. The realistic stacked number, using the measured saturation speedup and the top of the sorting range, is ~9.3x over naive sequential — the boring 10x, rounded.</p>
+<p><img alt="Each tuning knob as a single multiplier, with the cumulative speedup over a naive sequential baseline: V1 engine 1.7x, batch packing 5.0x, prefix cache plus sorting 1.3x, gpu_memory_utilization 0.95 1.1x, disabling speculative decoding at high batch 1.15x. Cumulative headroom about 14x; realistic stacked gain about 9x on prefix-heavy workloads." src="assets/batch_knobs.png" /></p>
+<p>Two caveats belong in the same breath. First, the knobs interact: prefix caching only pays if your prompts actually share prefixes, and sorting only pays if you sort. Random prompts with no shared system prompt get nothing from the cache. Second, <code>max_num_batched_tokens</code> at 16,384 or higher is the single biggest lever after batching itself, but it raises peak memory — pair it with the 0.95 utilization setting only on a dedicated box, and watch for preemption on long-output jobs.</p>
+<h2>The money: same GPU, same model, 6.5x cheaper</h2>
+<p>Cost per token is where the boring 10x becomes a budget line. At an illustrative $2/hr for an A100, the arithmetic is: HuggingFace sequential at 65 tok/s costs $8.55 per million output tokens; the vLLM online server at 383 tok/s costs $1.45; vLLM offline batch at 420 tok/s costs $1.32; and offline batch with prefix caching at 546 tok/s costs $1.02 — 8.4x cheaper than sequential. The online server is nearly as cheap as offline batch on pure throughput, which is the honest footnote: the server's cost is the idle capacity between arrivals, not the engine. If your traffic is steady, the server is fine. If your traffic is a nightly job, the batch wins because the GPU is never idle waiting for a request that is not coming.</p>
+<p><img alt="Dollars per 1M output tokens at an illustrative 2 dollars per hour A100 rate: HuggingFace sequential 8.55 dollars, vLLM online 1.45 dollars, vLLM offline 1.32 dollars, vLLM offline plus prefix cache 1.02 dollars. Offline batching cuts the bill about 6.5x before prefix caching." src="assets/batch_cost.png" /></p>
+<h2>When offline loses</h2>
+<p>The batch is the wrong tool in exactly three situations. First, a single prompt: <code>LLM.generate()</code> on one prompt pays engine startup and gets no amortization — use the server, or just run the model directly. Second, anything interactive: if a human is waiting, TTFT is the metric, and the 47-second trap above is real for the batch API. Third, streaming or unbounded workloads: the batch API wants a finite list, and a job that never ends is a server by definition. The decision rule is one sentence: if you know the whole workload before you start and nobody is watching the spinner, batch it; otherwise, serve it.</p>
+<h2>Takeaways</h2>
+<ul>
+<li><strong>Batching is the bus, serving is the taxi.</strong> <code>LLM.generate()</code> amortizes the weight read across the whole batch: 300–500 tok/s vs 50–80 for sequential HF on an A100 8B — 4–6x, saturating around batch 64.</li>
+<li><strong>The TTFT trap is a measurement error.</strong> Offline batch TTFT of 27–47 s vs 0.65 s sequential looks damning until you measure the same engine online: 71.5 ms mean TTFT. Judge the batch API on job throughput, not first-token latency.</li>
+<li><strong>Five knobs stack to ~10x.</strong> V1 engine (up to 1.7x), batch packing, prefix cache + sorting (1.1–1.44x), <code>gpu_memory_utilization</code> 0.95, and disabling speculative decoding at high batch — ~9.3x realistic on prefix-heavy workloads.</li>
+<li><strong>The bill is the argument.</strong> At $2/hr A100, offline batch + prefix cache is $1.02 per million tokens vs $8.55 sequential — 8.4x cheaper. The server is nearly as cheap per token; the batch wins on idle time.</li>
+<li><strong>Know the whole job, batch it.</strong> If the workload is finite and nobody is waiting, <code>LLM.generate()</code> with sorted prompts, prefix caching, and <code>max_num_batched_tokens</code> at 16,384+ is the default. If a human is waiting, serve it.</li>
+</ul>
+<p><em>Honesty note: throughput figures are third-party published measurements (smazcw3.github.io A100 walkthrough; Saumilya's 133-benchmark V100 sweep; vLLM's own bench-serve example; Parasail's 2026 batching guide), not a controlled A/B run by this author — different GPUs, models, and output lengths, so read them as shape, not delta. The notebook's curves are a toy queueing model calibrated to those cited endpoints, labelled in the code; the real vLLM calls are in the last cell and need a GPU box. The $2/hr A100 rate is illustrative. No Meta content per the standing exclusion.</em></p>
+<p><em>Companion notebook: <code>vllm_offline_batch.ipynb</code> — batch-size sweep, the TTFT trap, knob stacking, and cost math, all exec-tested.</em></p>
+</article>
+<div class="res"><h3>Companion notebook</h3><p><a href="assets/vllm_offline_batch.ipynb">vllm_offline_batch.ipynb</a> — the runnable tutorial for this post (download, or open it in Colab/Jupyter).</p></div>
+<p class="back"><a href="/blog/">&larr; All posts</a></p>
+</main></body></html>
